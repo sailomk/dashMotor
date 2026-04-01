@@ -47,7 +47,17 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         self.hud_panel = QtWidgets.QFrame(self.view_container)
         self.hud_panel.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
         self.hud_panel.setFixedSize(320, 160)
-        
+        self.hud_panel.setStyleSheet("""
+            QFrame {
+                background-color: rgba(0, 0, 0, 0.3); 
+                border-radius: 15px;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+            }
+            QLabel {
+                background: transparent;
+                border: none;
+            }
+        """)
         hud_info_layout = QtWidgets.QVBoxLayout(self.hud_panel)
         hud_info_layout.setContentsMargins(0, 0, 20, 0)
         hud_info_layout.setSpacing(1)
@@ -188,16 +198,16 @@ class RealTimeHUDTab(QtWidgets.QWidget):
             is_alarm = latest_val >= alarm_val
 
             # กำหนดสีตามสถานะ
-            val_color_str = "rgba(46, 204, 113, 0.9)" # เขียว (ปกติ)
+            val_color_str = "rgba(46, 204, 113, 0.8)" # เขียว (ปกติ)
             graph_qcolor = QtGui.QColor(46, 204, 113, 230)
             
             if not is_fresh:
-                val_color_str = "rgba(150, 150, 150, 0.4)" # เทา (Offline)
-                graph_qcolor = QtGui.QColor(150, 150, 150, 100)
+                val_color_str = "rgba(150, 150, 150, 0.3)" # เทา (Offline)
+                #graph_qcolor = QtGui.QColor(150, 150, 150, 100)
                 self.status_badge.setText("● OFFLINE")
             elif is_alarm:
-                val_color_str = "rgba(255, 51, 51, 0.9)"   # แดง (Alarm)
-                graph_qcolor = QtGui.QColor(255, 51, 51, 230)
+                val_color_str = "rgba(255, 51, 51, 0.8)"   # แดง (Alarm)
+                #graph_qcolor = QtGui.QColor(255, 51, 51, 230)
                 self.status_badge.setText("● ALARM")
             else:
                 self.status_badge.setText("● LIVE DATA")
