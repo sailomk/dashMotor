@@ -1,0 +1,523 @@
+{
+  "modbus": {
+    "port_name": "/dev/tty.usbserial-1410",  
+    "baudrate": 19200,
+    "parity": "N",
+    "stopbits": 1,
+    "bytesize": 8,
+    "timeout": 0.1,
+    "max_node": 3
+  },
+  "app_settings": {
+    "polling_ms": 1000,
+    "view_range_s": 120,
+    "max_points": 250,
+    "log_dir": "logs",
+    "alarm_threshold": 500.0
+  },
+  "font": {
+    "file_name": "Orbitron-Bold.ttf",
+    "value_size": 52,
+    "unit_size": 22,
+    "unit_font_family": "Arial",
+    "value_color_normal": "#00FF00",
+    "value_color_alarm": "#FF3333",
+    "unit_color": "#999"
+  },
+  "nodes": [
+    {
+      "node_id": 1,
+      "node_name": "Factory_1",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@11",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+        },
+        {
+          "name": "Motor@12",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "PSI",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "node_name": "Factory_2",
+      "driver": "DEFAULT",
+      "channels": [
+        {
+          "name": "Motor@21",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": false,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@22",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": false,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "node_name": "Factory_3",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@31",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@32",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+    
+    {
+      "node_id": 4,
+      "node_name": "Factory_4",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@41",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@42",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+
+    {
+      "node_id": 5,
+      "node_name": "Factory_5",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@51",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@52",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+
+    {
+      "node_id": 6,
+      "node_name": "Factory_6",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@61",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@62",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+
+    {
+      "node_id": 7,
+      "node_name": "Factory_7",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@71",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@72",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+
+    {
+      "node_id": 8,
+      "node_name": "Factory_8",
+      "driver": "CWT_BSR",
+      "channels": [
+        {
+          "name": "Motor@81",
+          "address": 0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "L/min",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+
+        },
+        {
+          "name": "Motor@82",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 2.0,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "node_id": 9,
+      "node_name": "Factory_9",
+      "driver": "DEFAULT",
+      "channels": [
+        {
+          "name": "Motor@91",
+          "address":0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+        },
+        {
+          "name": "Motor@92",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale":1.0,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "node_id": 10,
+      "node_name": "Factory_10",
+      "driver": "DEFAULT",
+      "channels": [
+        {
+          "name": "Motor@101",
+          "address":0,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale": 1.0,
+          "offset": 0
+        },
+        {
+          "name": "Motor@102",
+          "address": 1,
+          "type": "input",
+          "min": 0,
+          "max": 1000,
+          "unit": "rpm",
+          "enabled": true,
+          "scale":1.0,
+          "offset": 0
+        }
+      ]
+    },
+      {
+        "node_id": 11,
+        "node_name": "Factory_11",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@111",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@112",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "node_id": 12,
+        "node_name": "Factory_12",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@121",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@122",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "node_id": 13,
+        "node_name": "Factory_13",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@131",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@132",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      } ,
+      {
+        "node_id": 14,
+        "node_name": "Factory_14",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@141",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@142",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      },  
+      {
+        "node_id": 15,
+        "node_name": "Factory_15",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@151",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@152",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "node_id": 16,
+        "node_name": "Factory_16",
+        "driver": "DEFAULT",
+        "channels": [
+          {
+            "name": "Motor@161",
+            "address":0,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale": 1.0,
+            "offset": 0
+          },
+          {
+            "name": "Motor@162",
+            "address": 1,
+            "type": "input",
+            "min": 0,
+            "max": 1000,
+            "unit": "rpm",
+            "enabled": true,
+            "scale":1.0,
+            "offset": 0
+          }
+        ]
+      } 
+  ],
+  "debug": {
+    "level": "off",
+    "log_dir": "debug_logs",
+    "aggregation_window_minutes": 1,
+    "error_handling": {
+      "recovery_enabled": true,
+      "recovery_cooldown_seconds": 5,
+      "max_retries": 3,
+      "log_full_details": false,
+      "show_popup_alerts": true,
+      "alert_on_severity": ["CRITICAL", "ERROR"]
+    },
+    "error_categories": {
+      "critical": [4, 8],
+      "warning": [5, 6],
+      "info": []
+    }
+  }
+}

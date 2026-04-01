@@ -1,0 +1,137 @@
+/* --- Global Settings --- */
+QWidget {
+    color: #E0E0E0;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', sans-serif;
+    font-size: 13px;
+}
+
+QMainWindow, QWidget#MainContent {
+    background-color: #121212; /* พื้นหลังเทาเข้มช่วยลดความเมื่อยล้าของสายตา */
+}
+
+/* --- Tab Bar Styling --- */
+QTabWidget::pane {
+    border-top: 1px solid #333;
+    background: #121212;
+}
+
+QTabBar::tab {
+    background: #1E1E1E;
+    color: #888;
+    padding: 10px 30px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: #252525;
+    color: #2ECC71; /* Accent color: Emerald Green */
+    border-bottom: 3px solid #2ECC71;
+}
+
+QTabBar::tab:hover {
+    background: #2A2A2A;
+    color: #BBB;
+}
+
+/* --- Node Card Styling --- */
+QFrame#NodeCard {
+    background-color: #1E1E1E;
+    border: 1px solid #333;
+    border-radius: 12px;
+}
+
+/* เอฟเฟกต์เมื่อเมาส์วางบน Card (Highlight) */
+QFrame#NodeCard:hover {
+    border: 1px solid #2ECC71;
+}
+
+QLabel#NodeTitle {
+    color: #2ECC71;
+    font-weight: bold;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+QLabel#ValueDisplay {
+    color: #FFFFFF;
+    font-size: 32px;
+    font-weight: 800;
+    background: transparent;
+}
+
+/* --- Custom ScrollBar (Modern & Minimal) --- */
+QScrollBar:vertical {
+    border: none;
+    background: #121212;
+    width: 10px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #333;
+    min-height: 30px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #444;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* --- Button Styling --- */
+QPushButton#ActionButton {
+    background-color: #2ECC71;
+    color: #121212;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: bold;
+}
+
+QPushButton#ActionButton:hover {
+    background-color: #27AE60;
+}
+
+QPushButton#ActionButton:pressed {
+    background-color: #1E8449;
+}
+
+/* กล่องแสดงค่าปัจจุบัน (Hero Box) */
+QFrame#HeroValueBox {
+    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 #1E1E1E, stop:1 #252525);
+    border-radius: 15px;
+    border: 1px solid #333;
+}
+
+/* ตัวเลขค่าหลัก */
+QLabel#HeroValueLabel {
+    color: #2ECC71;
+    font-size: 64px;
+    font-weight: 800;
+}
+
+/* รายการ Node ฝั่งซ้าย */
+QListWidget#ModernList {
+    background-color: #161616;
+    border: none;
+    border-right: 1px solid #222;
+    outline: none;
+    padding: 5px;
+}
+
+QListWidget#ModernList::item {
+    padding: 15px;
+    margin: 4px;
+    border-radius: 8px;
+    color: #888;
+}
+
+QListWidget#ModernList::item:selected {
+    background-color: #2ECC71;
+    color: #121212;
+    font-weight: bold;
+}
