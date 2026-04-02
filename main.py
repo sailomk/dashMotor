@@ -1,4 +1,4 @@
-import sys, os, json, time
+import sys, os, json, time,math
 import numpy as np
 from datetime import datetime
 from PySide6 import QtWidgets, QtCore, QtGui
@@ -85,17 +85,18 @@ class MonitorApp(QtWidgets.QMainWindow):
 
         # 2. Main Tabs
         self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setStyleSheet("QTabBar::tab { text-align: left; }")
         self.rt_tab = RealTimeHUDTab(self.config, self.data_history, self.time_history)
         self.matrix_tab = AllNodesDashboard(self.config)
         self.history_tab = HistoryViewerTab(self.config)
         self.error_tab = ErrorSummaryTab(self)
         self.bench_tab = BenchmarkPage(self.worker)
 
-        self.tabs.addTab(self.rt_tab, " 🚀 Real-Time Monitor")
-        self.tabs.addTab(self.matrix_tab, " 📊 All Nodes Dashboard")
-        self.tabs.addTab(self.history_tab, " 📜 History Viewer")
-        self.tabs.addTab(self.error_tab, " 🚨 Error Summary")
-        self.tabs.addTab(self.bench_tab, " 📡 Benchmark Test")
+        self.tabs.addTab(self.rt_tab, " Real-Time Monitor")
+        self.tabs.addTab(self.matrix_tab, "  All Nodes Dashboard")
+        self.tabs.addTab(self.history_tab, "  History Viewer")
+        self.tabs.addTab(self.error_tab, "  Error Summary")
+        self.tabs.addTab(self.bench_tab, "  Benchmark Test")
         self.main_layout.addWidget(self.tabs, stretch=1)
 
         # 3. Bottom Strip Scroll Area
@@ -213,13 +214,32 @@ class MonitorApp(QtWidgets.QMainWindow):
     def on_data_received(self, batch, timestamp):
         max_pts = self.config['app_settings'].get('max_points', 300)
         
+        polling_sec = self.config['app_settings'].get('polling_ms', 1000) / 1000.0
+        gap_threshold = polling_sec * 2.5
+
         for ch_key, val in batch.items():
             # เก็บ History
             if ch_key not in self.data_history:
                 self.data_history[ch_key], self.time_history[ch_key] = [], []
+
+            # ตรวจสอบว่ามีช่องว่างของเวลาหรือไม่ (Data Lost Check)
+            if self.time_history[ch_key]:
+                last_ts = self.time_history[ch_key][-1]
+                # ถ้าเวลาปัจจุบัน ห่างจากเวลาล่าสุดเกินกำหนด
+                if (timestamp - last_ts) > gap_threshold:
+                    # แทรกค่า NaN (Not a Number) เพื่อสั่งให้กราฟ "หยุดวาด" เส้นเชื่อม
+                    self.data_history[ch_key].append(float('nan'))
+                    self.time_history[ch_key].append(last_ts + 0.001) # แทรกเวลาจำลองต่อท้ายจุดเดิมเล็กน้อย
+
             self.data_history[ch_key].append(val)
             self.time_history[ch_key].append(timestamp)
             
+            # ควบคุมจำนวนจุดข้อมูล
+            while len(self.data_history[ch_key]) > max_pts:
+                self.data_history[ch_key].pop(0)
+                self.time_history[ch_key].pop(0)
+
+
             if len(self.data_history[ch_key]) > max_pts:
                 self.data_history[ch_key].pop(0); self.time_history[ch_key].pop(0)
             
@@ -256,44 +276,6 @@ class MonitorApp(QtWidgets.QMainWindow):
             self.worker.stop(); self.worker.wait(2000)
         event.accept()
 
-""" class HorizontalLEDBar(QtWidgets.QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(8)  # ความสูงของแถบ LED
-        self.percent = 0
-        self.bar_color = QtGui.QColor("#2ECC71")
-
-    def set_value(self, value, max_val):
-        # คำนวณ % โดยจำกัดไม่ให้เกิน 100 และไม่น้อยกว่า 0
-        limit = max_val if max_val > 0 else 100
-        self.percent = min(100, max(0, (value / limit) * 100))
-        
-        # Logic เปลี่ยนสี: เขียว -> เหลือง (70%) -> แดง (90%)
-        if self.percent >= 90:
-            self.bar_color = QtGui.QColor("#FF3333") # แดง
-        elif self.percent >= 70:
-            self.bar_color = QtGui.QColor("#FFCC00") # เหลือง
-        else:
-            self.bar_color = QtGui.QColor("#2ECC71") # เขียว
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        
-        # วาด Background Track (ร่องสีเทาจางๆ)
-        bg_rect = QtCore.QRectF(0, 0, self.width(), self.height())
-        painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255, 15)))
-        painter.setPen(QtCore.Qt.NoPen)
-        painter.drawRoundedRect(bg_rect, 4, 4)
-        
-        # วาดแถบพลังงาน (Progress) ตาม %
-        if self.percent > 0:
-            bar_width = (self.percent / 100) * self.width()
-            bar_rect = QtCore.QRectF(0, 0, bar_width, self.height())
-            painter.setBrush(QtGui.QBrush(self.bar_color))
-            painter.drawRoundedRect(bar_rect, 4, 4)
- """
 
 class HorizontalLEDBar(QtWidgets.QWidget):
     def __init__(self, parent=None):

@@ -1,4 +1,4 @@
-import sys, os, json, time
+import sys, os, json, time,math
 import numpy as np
 from datetime import datetime
 from PySide6 import QtWidgets, QtCore, QtGui
@@ -29,8 +29,13 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         self.plot_widget = pg.PlotWidget(axisItems={'bottom': pg.DateAxisItem()})
         self.plot_widget.setBackground('#0a0a0a')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.1) # Grid กลับมาแล้ว
-        
-        self.curve = self.plot_widget.plot(pen=pg.mkPen(color='#2ECC71', width=2.5), antialias=True)
+        self.gap_curve = self.plot_widget.plot(
+            pen=pg.mkPen(color='#FF3333', width=1, style=QtCore.Qt.DashLine)
+        )
+        self.gap_curve.setZValue(-1)
+        self.curve = self.plot_widget.plot(
+            pen=pg.mkPen(color='#2ECC71', width=2.5), antialias=True,connect='finite' 
+        )
         
         # Crosshair ดั้งเดิม
         self.rt_vLine = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen('#FFCC00', width=1, style=QtCore.Qt.DashLine))
@@ -77,6 +82,7 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         hud_info_layout.addWidget(self.value_lbl, 0, QtCore.Qt.AlignRight)
 
         self.main_layout.addWidget(self.view_container)
+
     def rt_mouseMoved(self, evt):
         # 1. เช็คก่อนว่ามีการเลือก Node และมีข้อมูลใน History หรือไม่
         if not hasattr(self, 'current_key') or not self.current_key:
@@ -148,19 +154,17 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         
     def update_ui(self):
         # --- 1. ตรวจสอบว่ามีการเลือก Node หรือยัง ---
-        # ถ้าไม่มีการเลือก (current_key ว่าง) ให้จบการทำงาน
         if not hasattr(self, 'current_key') or not self.current_key:
+            self.status_badge.setText("● WAITING")
             return
 
         ch_key = self.current_key
         
         # --- 2. อัปเดตข้อมูล Static บน HUD (Name & Addr) ---
-        # เราดึงข้อมูลจาก config โดยใช้ ch_key เป็นตัวหา
         try:
             found = False
             for node_cfg in self.config.get('nodes', []):
                 for ch in node_cfg.get('channels', []):
-                    # สร้าง key สมมติเพื่อเช็คว่าตรงกับที่เลือกไหม
                     check_key = f"{node_cfg['node_name']}_{ch['name']}"
                     if check_key == ch_key:
                         self.node_name_lbl.setText(node_cfg['node_name'].upper())
@@ -176,18 +180,23 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         staleness_timeout = (polling_ms * 2.5) / 1000.0 
         now = time.time()
         
-        # เช็คว่ามีข้อมูลของ Key นี้ใน Dictionary หรือไม่
         has_data = ch_key in self.data_history and len(self.data_history[ch_key]) > 0
         
         if has_data:
-            # ดึงข้อมูลมาเป็น List เพื่อใช้กับ pyqtgraph
-            t_data = list(self.time_history[ch_key])
-            v_data = list(self.data_history[ch_key])
-            latest_time, latest_val = t_data[-1], v_data[-1]
-            global_max_y = max(v_data)
+            t_raw = list(self.time_history[ch_key])
+            v_raw = list(self.data_history[ch_key])
             
-            # --- 4. Dynamic Headroom (Feature เดิมของคุณ) ---
-            # ปรับเพดานกราฟเป็น 1.35 เท่าของค่าสูงสุด
+            # --- [NEW] กรองข้อมูลสำหรับเส้นประสีแดง (Gap Line) ---
+            # กรองเอาเฉพาะจุดที่เป็นตัวเลขจริง (ไม่ใช่ NaN) เพื่อวาดเส้นประเชื่อมช่องว่าง
+            gap_x = [t for i, t in enumerate(t_raw) if not math.isnan(v_raw[i])]
+            gap_y = [v for v in v_raw if not math.isnan(v)]
+            
+            if not gap_y: return # ป้องกันกรณีข้อมูลมีแต่ NaN
+
+            latest_time, latest_val = gap_x[-1], gap_y[-1]
+            global_max_y = max(gap_y)
+            
+            # --- 4. Dynamic Headroom ---
             y_upper_limit = global_max_y * 1.35 if global_max_y > 0 else 100
             self.plot_widget.setYRange(0, y_upper_limit, padding=0)
 
@@ -202,11 +211,9 @@ class RealTimeHUDTab(QtWidgets.QWidget):
             
             if not is_fresh:
                 val_color_str = "rgba(150, 150, 150, 0.3)" # เทา (Offline)
-                #graph_qcolor = QtGui.QColor(150, 150, 150, 100)
                 self.status_badge.setText("● OFFLINE")
             elif is_alarm:
                 val_color_str = "rgba(255, 51, 51, 0.8)"   # แดง (Alarm)
-                #graph_qcolor = QtGui.QColor(255, 51, 51, 230)
                 self.status_badge.setText("● ALARM")
             else:
                 self.status_badge.setText("● LIVE DATA")
@@ -216,29 +223,30 @@ class RealTimeHUDTab(QtWidgets.QWidget):
             self.value_lbl.setStyleSheet(f"color: {val_color_str}; font-size: 42pt; font-weight: 800; background: transparent;")
             self.status_badge.setStyleSheet(f"color: {val_color_str}; background: rgba(255,255,255,0.05); border-radius:4px; padding:2px 8px;")
 
-            # --- 6. วาดเส้นกราฟ (Plotting) ---
-            self.curve.setData(t_data, v_data)
+            # --- 6. วาดเส้นกราฟ (Dual Plotting) ---
+            
+            # A. วาดเส้นประสีแดง (เลเยอร์หลัง)
+            if hasattr(self, 'gap_curve'):
+                self.gap_curve.setData(gap_x, gap_y)
+            
+            # B. วาดเส้นหลัก (สีตามสถานะ) - เส้นนี้จะแหว่งตรงที่มี NaN
+            self.curve.setData(t_raw, v_raw)
             self.curve.setPen(pg.mkPen(color=graph_qcolor, width=2.5))
 
-            # --- 7. Dynamic HUD Position (วิ่งตามกราฟ) ---
+            # --- 7. Dynamic HUD Position ---
             def reposition_hud():
                 if not hasattr(self, 'hud_panel'): return
-                
-                # คำนวณตำแหน่ง X (ชิดขวา)
                 target_x = self.view_container.width() - self.hud_panel.width() - 25
                 
                 if global_max_y <= 0.01:
                     target_y = 20
                 else:
-                    # แปลงค่าพิกัดจากข้อมูลในกราฟ (View) เป็นพิกัดบนหน้าจอ (Scene)
                     vb = self.plot_widget.getViewBox()
                     scene_pt = vb.mapViewToScene(QtCore.QPointF(latest_time, global_max_y))
                     local_pt = self.view_container.mapFromGlobal(self.plot_widget.mapToGlobal(scene_pt.toPoint()))
-                    
                     val_bottom_offset = 135 
                     target_y = local_pt.y() - val_bottom_offset - 15
 
-                # Clamp: ไม่ให้ HUD หลุดขอบบนหรือล่าง
                 if target_y < 10: target_y = 10
                 if target_y > self.view_container.height() - self.hud_panel.height():
                     target_y = self.view_container.height() - self.hud_panel.height() - 10
@@ -246,19 +254,15 @@ class RealTimeHUDTab(QtWidgets.QWidget):
                 self.hud_panel.move(int(target_x), int(target_y))
                 self.hud_panel.raise_()
 
-            # สั่งจัดตำแหน่งหลังจากกราฟวาดเสร็จ (ใช้ SingleShot เพื่อรอ Event Loop)
             QtCore.QTimer.singleShot(1, reposition_hud)
 
-            # --- 8. X-AXIS Logic (Start from Left) ---
+            # --- 8. X-AXIS Logic ---
             view_range = self.config['app_settings'].get('view_range_s', 120)
-            # ถ้าข้อมูลยังมีไม่ถึงช่วงเวลาที่กำหนด ให้แสดงเริ่มจากซ้าย (0 ถึง view_range)
-            if (latest_time - t_data[0]) < view_range:
-                self.plot_widget.setXRange(t_data[0], t_data[0] + view_range, padding=0)
+            if (latest_time - gap_x[0]) < view_range:
+                self.plot_widget.setXRange(gap_x[0], gap_x[0] + view_range, padding=0)
             else:
-                # ถ้าข้อมูลเกินแล้ว ให้เลื่อนกราฟตาม (Scrolling)
                 self.plot_widget.setXRange(latest_time - view_range, latest_time, padding=0)
         else:
-            # --- กรณีไม่มีข้อมูล (Waiting State) ---
             self.value_lbl.setText("0.00")
             self.status_badge.setText("● WAITING")
             self.status_badge.setStyleSheet("color: rgba(150,150,150,0.8); background: rgba(255,255,255,0.05); border-radius:4px; padding:2px 8px;")
