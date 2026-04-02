@@ -12,6 +12,7 @@ from ui.history_tab import HistoryViewerTab
 from ui.error_tab import ErrorSummaryTab
 from ui.benchmark_page import BenchmarkPage
 
+pg.setConfigOptions(antialias=True, useOpenGL=False)
 class MonitorApp(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -107,10 +108,11 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
 
         self.strip_content = QtWidgets.QWidget()
+        self.strip_content.setObjectName("BottomStripContent")
         self.strip_layout = QtWidgets.QHBoxLayout(self.strip_content)
         self.strip_layout.setContentsMargins(15, 12, 15, 12)
         self.strip_layout.setSpacing(15)
-
+      
         # 4. Loop สร้าง Card สำหรับแต่ละ Node
         for node_cfg in self.config.get('nodes', []):
             for ch in node_cfg.get('channels', []):

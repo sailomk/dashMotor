@@ -42,6 +42,10 @@ QScrollArea#BottomScrollArea {
     border-top: 1px solid #333;
 }
 
+QWidget#BottomStripContent {
+    background-color: #121212;
+}
+
 /* แถบเลื่อนแนวนอนด้านล่าง */
 QScrollBar:horizontal {
     border: none;
