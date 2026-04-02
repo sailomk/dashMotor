@@ -146,7 +146,6 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         if hasattr(self, 'rt_hLine'): self.rt_hLine.hide()
         if hasattr(self, 'rt_hover_label'): self.rt_hover_label.hide()
         
-
     def update_ui(self):
         # --- 1. ตรวจสอบว่ามีการเลือก Node หรือยัง ---
         # ถ้าไม่มีการเลือก (current_key ว่าง) ให้จบการทำงาน

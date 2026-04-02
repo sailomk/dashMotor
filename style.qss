@@ -6,7 +6,7 @@ QWidget {
 }
 
 QMainWindow, QWidget#MainContent {
-    background-color: #121212; /* พื้นหลังเทาเข้มช่วยลดความเมื่อยล้าของสายตา */
+    background-color: #121212;
 }
 
 /* --- Tab Bar Styling --- */
@@ -26,7 +26,7 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     background: #252525;
-    color: #2ECC71; /* Accent color: Emerald Green */
+    color: #2ECC71;
     border-bottom: 3px solid #2ECC71;
 }
 
@@ -35,33 +35,37 @@ QTabBar::tab:hover {
     color: #BBB;
 }
 
-/* --- Node Card Styling --- */
-QFrame#NodeCard {
-    background-color: #1E1E1E;
-    border: 1px solid #333;
-    border-radius: 12px;
+/* --- Bottom Strip ScrollArea & ScrollBar (NEW) --- */
+QScrollArea#BottomScrollArea {
+    background: #080808;
+    border: none;
+    border-top: 1px solid #333;
 }
 
-/* เอฟเฟกต์เมื่อเมาส์วางบน Card (Highlight) */
-QFrame#NodeCard:hover {
-    border: 1px solid #2ECC71;
+/* แถบเลื่อนแนวนอนด้านล่าง */
+QScrollBar:horizontal {
+    border: none;
+    background: #111;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
 }
 
-QLabel#NodeTitle {
-    color: #2ECC71;
-    font-weight: bold;
-    font-size: 11px;
-    letter-spacing: 1px;
+QScrollBar::handle:horizontal {
+    background: #333;
+    min-width: 40px;
+    border-radius: 4px;
 }
 
-QLabel#ValueDisplay {
-    color: #FFFFFF;
-    font-size: 32px;
-    font-weight: 800;
-    background: transparent;
+QScrollBar::handle:horizontal:hover {
+    background: #2ECC71; /* กลายเป็นสีเขียวเมื่อเอาเมาส์จี้ */
 }
 
-/* --- Custom ScrollBar (Modern & Minimal) --- */
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* --- Vertical ScrollBar --- */
 QScrollBar:vertical {
     border: none;
     background: #121212;
@@ -83,55 +87,114 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
-/* --- Button Styling --- */
-QPushButton#ActionButton {
-    background-color: #2ECC71;
-    color: #121212;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-weight: bold;
-}
-
-QPushButton#ActionButton:hover {
-    background-color: #27AE60;
-}
-
-QPushButton#ActionButton:pressed {
-    background-color: #1E8449;
-}
-
-/* กล่องแสดงค่าปัจจุบัน (Hero Box) */
-QFrame#HeroValueBox {
-    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 #1E1E1E, stop:1 #252525);
-    border-radius: 15px;
+/* --- Node Card Styling (Bottom Strip) --- */
+/* ใช้ Selector QPushButton เพื่อให้กระทบกับปุ่มที่เราใช้ทำการ์ด */
+QPushButton#NodeCard {
+    background-color: #121212;
     border: 1px solid #333;
+    border-radius: 12px;
+    text-align: left;
 }
 
-/* ตัวเลขค่าหลัก */
-QLabel#HeroValueLabel {
-    color: #2ECC71;
-    font-size: 64px;
-    font-weight: 800;
+QPushButton#NodeCard:hover {
+    background-color: #1A1A1A;
+    border: 1px solid #444;
 }
 
-/* รายการ Node ฝั่งซ้าย */
-QListWidget#ModernList {
-    background-color: #161616;
-    border: none;
-    border-right: 1px solid #222;
-    outline: none;
-    padding: 5px;
+QPushButton#NodeCard:checked {
+    background-color: rgba(46, 204, 113, 0.08);
+    border: 2px solid #2ECC71;
 }
 
-QListWidget#ModernList::item {
-    padding: 15px;
-    margin: 4px;
-    border-radius: 8px;
-    color: #888;
-}
-
-QListWidget#ModernList::item:selected {
-    background-color: #2ECC71;
-    color: #121212;
+/* --- Elements inside Card --- */
+QLabel#NodeTitle {
+    color: #777;
     font-weight: bold;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+QLabel#ValueDisplay {
+    color: #FFFFFF;
+    font-size: 18px;
+    font-weight: bold;
+    font-family: 'Consolas';
+}
+
+QLabel#PercDisplay {
+    color: #2ECC71;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* --- Bottom Strip ScrollArea --- */
+QScrollArea#BottomScrollArea {
+    background: #080808;
+    border: none;
+    border-top: 1px solid #333;
+}
+
+/* ปรับแต่ง Horizontal ScrollBar ให้ Slim และสวยงาม */
+QScrollArea#BottomScrollArea QScrollBar:horizontal {
+    border: none;
+    background: #111;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+
+QScrollArea#BottomScrollArea QScrollBar::handle:horizontal {
+    background: #333;
+    min-width: 40px;
+    border-radius: 4px;
+}
+
+QScrollArea#BottomScrollArea QScrollBar::handle:horizontal:hover {
+    background: #2ECC71; /* Highlight สีเขียวตอนเอาเมาส์วาง */
+}
+
+QScrollArea#BottomScrollArea QScrollBar::add-line:horizontal, 
+QScrollArea#BottomScrollArea QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* --- Node Card (QPushButton) --- */
+QPushButton#NodeCard {
+    background: #121212;
+    border: 1px solid #333;
+    border-radius: 10px;
+}
+
+QPushButton#NodeCard:hover {
+    background: #1a1a1a;
+}
+
+QPushButton#NodeCard:checked {
+    background: #121212;
+    border: 4px solid #2ECC71;
+}
+
+/* --- Labels Inside Card --- */
+QLabel#NodeTitle {
+    color: #666;
+    font-size: 9px; /* ปรับขนาดฟอนต์ให้พอดี */
+    font-weight: bold;
+    text-transform: uppercase;
+    background: transparent;
+}
+
+QLabel#PercDisplay {
+    color: #2ECC71;
+    font-size: 13px;
+    font-weight: bold;
+    font-family: 'Consolas';
+    background: transparent;
+}
+
+QLabel#ValueDisplay {
+    color: #eee;
+    font-size: 17px;
+    font-weight: bold;
+    font-family: 'Consolas';
+    background: transparent;
 }

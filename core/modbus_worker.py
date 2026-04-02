@@ -86,11 +86,27 @@ class AsyncPollWorker(QtCore.QThread):
         finally:
             # Cleanup: กวาดล้าง Tasks ที่ค้างอยู่แบบสุภาพก่อนปิด Loop
             try:
+                # 1. ปิด Client ก่อนเพื่อให้ Transport หยุดพยายามรับส่งข้อมูล
+                if self.client:
+                    self.client.close()
+                    print("🔌 Modbus client closed.")
+
+                # 2. ดึง Task ทั้งหมดที่ยังค้างอยู่
                 pending = asyncio.all_tasks(self.loop)
+                
                 if pending:
-                    # รอให้ Tasks เคลียร์ตัวเอง 0.5 วินาที
-                    self.loop.run_until_complete(asyncio.wait(pending, timeout=0.5))
-            except: pass
+                    # 3. สั่ง Cancel ทุก Task ทันที
+                    for task in pending:
+                        task.cancel()
+                    
+                    # 4. รัน Loop ต่ออีกนิดเพื่อให้ Tasks รับทราบการโดน Cancel
+                    # return_exceptions=True เพื่อไม่ให้มันเด้ง Error ตอนเรากำลังจะปิด
+                    self.loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+                    print(f"🧹 Cleaned up {len(pending)} tasks.")
+            except Exception as cleanup_err:
+                print(f"⚠️ Cleanup error: {cleanup_err}")
             
             if self.client:
                 self.client.close()

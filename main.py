@@ -76,18 +76,19 @@ class MonitorApp(QtWidgets.QMainWindow):
                 self.setStyleSheet(f.read())
 
     def init_ui(self):
+        # 1. Main Container & Layout
         self.central_widget = QtWidgets.QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QtWidgets.QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # --- ส่วนที่ 1: Main Tabs (พื้นที่กราฟหลัก) ---
+        # 2. Main Tabs
         self.tabs = QtWidgets.QTabWidget()
         self.rt_tab = RealTimeHUDTab(self.config, self.data_history, self.time_history)
         self.matrix_tab = AllNodesDashboard(self.config)
         self.history_tab = HistoryViewerTab(self.config)
-        self.error_tab = ErrorSummaryTab(self) 
+        self.error_tab = ErrorSummaryTab(self)
         self.bench_tab = BenchmarkPage(self.worker)
 
         self.tabs.addTab(self.rt_tab, " 🚀 Real-Time Monitor")
@@ -95,98 +96,88 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.tabs.addTab(self.history_tab, " 📜 History Viewer")
         self.tabs.addTab(self.error_tab, " 🚨 Error Summary")
         self.tabs.addTab(self.bench_tab, " 📡 Benchmark Test")
-        
         self.main_layout.addWidget(self.tabs, stretch=1)
 
-        # --- ส่วนที่ 2: Bottom Fast-Scroll Strip (Horizontal LED Cards) ---
+        # 3. Bottom Strip Scroll Area
         self.scroll_area = QtWidgets.QScrollArea()
-        self.scroll_area.setFixedHeight(115) # ปรับความสูงให้พอดีกับแนวนอน
+        self.scroll_area.setObjectName("BottomScrollArea") # อ้างอิงใน style.qss
+        self.scroll_area.setFixedHeight(125)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
-        self.scroll_area.setStyleSheet("background: #080808; border: none; border-top: 1px solid #222;")
 
         self.strip_content = QtWidgets.QWidget()
         self.strip_layout = QtWidgets.QHBoxLayout(self.strip_content)
-        self.strip_layout.setContentsMargins(15, 10, 15, 10)
-        self.strip_layout.setSpacing(12)
+        self.strip_layout.setContentsMargins(15, 12, 15, 12)
+        self.strip_layout.setSpacing(15)
 
-        # สร้างการ์ดสำหรับแต่ละ Node จาก Config
+        # 4. Loop สร้าง Card สำหรับแต่ละ Node
         for node_cfg in self.config.get('nodes', []):
             for ch in node_cfg.get('channels', []):
                 if ch.get('enabled', True):
-                    # สร้าง Key สำหรับดึงข้อมูล (Node_Channel)
                     display_name = f"{node_cfg['node_name']} - {ch['name']}"
                     ch_key = display_name.replace(" - ", "_")
-                    
-                    # สร้างปุ่มการ์ด
+                    addr = ch.get('address', 0)
+                    max_val = ch.get('max_val', 1000)
+
+                    # --- สร้าง Card ---
                     card = QtWidgets.QPushButton()
+                    card.setObjectName("NodeCard") # อ้างอิงใน style.qss
                     card.setCheckable(True)
-                    card.setFixedSize(195, 85)
+                    card.setFixedSize(190, 90) 
                     card.setCursor(QtCore.Qt.PointingHandCursor)
                     
-                    # Layout แนวตั้งภายใน Card
-                    card_v_layout = QtWidgets.QVBoxLayout(card)
-                    card_v_layout.setContentsMargins(12, 10, 12, 10)
-                    card_v_layout.setSpacing(5)
-                    
-                    # 1. หัวข้อ (ชื่อ Node)
+                    v_layout = QtWidgets.QVBoxLayout(card)
+                    v_layout.setContentsMargins(12, 10, 12, 10)
+                    v_layout.setSpacing(6)
+
+                    # A. Labels พร้อมชื่อ Object สำหรับ QSS
                     nlbl = QtWidgets.QLabel(f"{node_cfg['node_name']} · {ch['name']}")
-                    nlbl.setStyleSheet("color: #777; font-size: 7pt; font-weight: bold; text-transform: uppercase;")
+                    nlbl.setObjectName("NodeTitle")
                     
-                    # 2. แถบ LED แนวนอน (Custom Widget)
-                    led_bar = HorizontalLEDBar()
+                    led_bar = HorizontalLEDBar() # 20 Segments
                     
-                    # 3. ตัวเลขค่าปัจจุบัน (Live Value)
+                    bottom_row = QtWidgets.QHBoxLayout()
+                    plbl = QtWidgets.QLabel("0%")
+                    plbl.setObjectName("PercDisplay")
+                    
                     vlbl = QtWidgets.QLabel("0.00")
-                    vlbl.setStyleSheet("color: #eee; font-size: 13pt; font-weight: bold; font-family: 'Consolas';")
-                    
-                    card_v_layout.addWidget(nlbl)
-                    card_v_layout.addWidget(led_bar)
-                    card_v_layout.addWidget(vlbl, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignBottom)
-                    
-                    card.setStyleSheet("""
-                        QPushButton { 
-                            background: #121212; 
-                            border: 1px solid #333; 
-                            border-radius: 10px; 
-                        }
-                        QPushButton:hover { background: #1a1a1a; }
-                        QPushButton:checked { 
-                            background: rgba(46, 204, 113, 0.08); 
-                            border: 2px solid #2ECC71; 
-                        }
-                    """)
-                    
-                    # เชื่อมต่อการคลิกเพื่อสลับกราฟ
-                    addr = ch.get('address', 0)
+                    vlbl.setObjectName("ValueDisplay")
+
+                    bottom_row.addWidget(plbl)
+                    bottom_row.addStretch()
+                    bottom_row.addWidget(vlbl)
+
+                    v_layout.addWidget(nlbl)
+                    v_layout.addWidget(led_bar)
+                    v_layout.addLayout(bottom_row)
+
+                    # Signal Connection
                     card.clicked.connect(lambda checked, k=ch_key, a=addr, d=display_name: self.switch_node(k, a, d))
-                    
+
                     self.strip_layout.addWidget(card)
-                    
-                    # เก็บ Reference เพื่อใช้อัปเดตใน on_data_received
-                    # ต้องมี 'max' ใน config หรือ default เป็น 1000
+
+                    # เก็บ Reference
                     self.node_widgets[ch_key] = {
-                        "btn": card, 
-                        "val_lbl": vlbl, 
-                        "led": led_bar, 
-                        "max": ch.get('max_val', 1000) 
+                        "btn": card,
+                        "val_lbl": vlbl,
+                        "perc_lbl": plbl,
+                        "led": led_bar,
+                        "max": max_val
                     }
 
         self.strip_layout.addStretch()
         self.scroll_area.setWidget(self.strip_content)
         self.main_layout.addWidget(self.scroll_area)
-
-        # แสดงแถบด้านล่างเฉพาะหน้าแรก
+        
+        # แสดงผลตาม Tab
         self.tabs.currentChanged.connect(lambda idx: self.scroll_area.setVisible(idx == 0))
-
-        # เลือกตัวแรกอัตโนมัติเมื่อเปิดโปรแกรม
+        
+        # เลือก Node แรก
         if self.node_widgets:
             first_key = list(self.node_widgets.keys())[0]
-            # ค้นหาชื่อและที่อยู่ตัวแรก
-            fn = self.config['nodes'][0]
-            fc = fn['channels'][0]
-            self.switch_node(first_key, fc.get('address', 0), f"{fn['node_name']} - {fc['name']}")
-
+            self.switch_node(first_key, self.config['nodes'][0]['channels'][0].get('address', 0), first_key.replace("_", " - "))
+            
+                       
     def switch_node(self, ch_key, addr, display_name):
         """
         สลับการแสดงผลกราฟและอัปเดต HUD ข้อมูล
@@ -220,43 +211,41 @@ class MonitorApp(QtWidgets.QMainWindow):
 
     @QtCore.Slot(dict, float)
     def on_data_received(self, batch, timestamp):
-        """
-        รับข้อมูลชุดใหญ่ (batch) จาก Worker 
-        batch: { 'Node_Channel': value, ... }
-        """
         max_pts = self.config['app_settings'].get('max_points', 300)
         
         for ch_key, val in batch.items():
-            # 1. เก็บข้อมูลลงในหน่วยความจำ (History) สำหรับวาดกราฟ
+            # เก็บ History
             if ch_key not in self.data_history:
                 self.data_history[ch_key], self.time_history[ch_key] = [], []
-            
             self.data_history[ch_key].append(val)
             self.time_history[ch_key].append(timestamp)
             
-            # ลบข้อมูลเก่าทิ้งถ้าเกินจำนวนที่กำหนด
             if len(self.data_history[ch_key]) > max_pts:
-                self.data_history[ch_key].pop(0)
-                self.time_history[ch_key].pop(0)
+                self.data_history[ch_key].pop(0); self.time_history[ch_key].pop(0)
             
-            # 2. อัปเดตข้อมูลบนปุ่มการ์ด (Bottom Strip)
+            # อัปเดต Card (เฉพาะจุดที่มีข้อมูล)
             if ch_key in self.node_widgets:
-                widgets = self.node_widgets[ch_key]
+                w = self.node_widgets[ch_key]
+                percent = min(100, max(0, (val / w['max']) * 100))
                 
-                # อัปเดตตัวเลข Live Value
-                widgets['val_lbl'].setText(f"{val:,.2f}")
+                # 1. อัปเดตตัวเลขค่าจริง (ดึง Style จาก ValueDisplay ใน QSS)
+                w['val_lbl'].setText(f"{val:,.2f}")
                 
-                # อัปเดตแถบ LED แนวนอน และคำนวณสี (เขียว/เหลือง/แดง)
-                max_val = widgets['max']
-                widgets['led'].set_value(val, max_val)
+                # 2. อัปเดตตัวเลข % และเปลี่ยนสีตามระดับ (Dynamic Logic)
+                w['perc_lbl'].setText(f"{int(percent)}%")
+                if percent >= 90:
+                    w['perc_lbl'].setStyleSheet("color: #FF3333; font-weight: bold;") # แดง
+                elif percent >= 70:
+                    w['perc_lbl'].setStyleSheet("color: #FFCC00; font-weight: bold;") # เหลือง
+                else:
+                    w['perc_lbl'].setStyleSheet("color: #2ECC71; font-weight: bold;") # เขียวปกติ
                 
-        # 3. อัปเดตหน้า Matrix Dashboard (All Nodes View)
-        if hasattr(self, 'matrix_tab'):
-            self.matrix_tab.update_values(batch)
-            
-        # 4. หากกำลังดูหน้ากราฟ (Index 0) ให้สั่งอัปเดตกราฟทันทีเพื่อให้เส้นขยับ
-        if self.tabs.currentIndex() == 0:
-            self.rt_tab.update_ui()
+                # 3. อัปเดต LED Bar 20 ช่อง
+                w['led'].set_value(val, w['max'])
+
+        # Sync หน้าจออื่น
+        if hasattr(self, 'matrix_tab'): self.matrix_tab.update_values(batch)
+        if self.tabs.currentIndex() == 0: self.rt_tab.update_ui()
 
     def refresh_active_tab(self):
         if self.tabs.currentIndex() == 0:
@@ -267,7 +256,7 @@ class MonitorApp(QtWidgets.QMainWindow):
             self.worker.stop(); self.worker.wait(2000)
         event.accept()
 
-class HorizontalLEDBar(QtWidgets.QWidget):
+""" class HorizontalLEDBar(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(8)  # ความสูงของแถบ LED
@@ -304,7 +293,45 @@ class HorizontalLEDBar(QtWidgets.QWidget):
             bar_rect = QtCore.QRectF(0, 0, bar_width, self.height())
             painter.setBrush(QtGui.QBrush(self.bar_color))
             painter.drawRoundedRect(bar_rect, 4, 4)
+ """
 
+class HorizontalLEDBar(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(12) # ปรับความสูงให้พอดีกับแท่ง LED
+        self.percent = 0
+        self.segments = 20
+
+    def set_value(self, value, max_val):
+        limit = max_val if max_val > 0 else 100
+        self.percent = min(100, max(0, (value / limit) * 100))
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        
+        spacing = 1.5
+        total_spacing = spacing * (self.segments - 1)
+        seg_width = (self.width() - total_spacing) / self.segments
+        seg_height = self.height()
+
+        active_segments = int(self.percent / (100 / self.segments))
+
+        for i in range(self.segments):
+            x_pos = i * (seg_width + spacing)
+            rect = QtCore.QRectF(x_pos, 0, seg_width, seg_height)
+            
+            if i < active_segments:
+                if i >= 18: color = QtGui.QColor("#FF3333")    # 90%+
+                elif i >= 14: color = QtGui.QColor("#FFCC00")  # 70%+
+                else: color = QtGui.QColor("#2ECC71")          # Normal
+            else:
+                color = QtGui.QColor(255, 255, 255, 12)        # Empty
+
+            painter.setBrush(QtGui.QBrush(color))
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.drawRoundedRect(rect, 1, 1)
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
