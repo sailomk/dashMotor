@@ -84,7 +84,7 @@ class RealTimeHUDTab(QtWidgets.QWidget):
         self.main_layout.addWidget(self.view_container)
 
     def rt_mouseMoved(self, evt):
-        # 1. เช็คก่อนว่ามีการเลือก Node และมีข้อมูลใน History หรือไม่
+        # 1. ตรวจสอบเบื้องต้น: มีการเลือก Node และมีข้อมูล History หรือไม่
         if not hasattr(self, 'current_key') or not self.current_key:
             self.hide_crosshair()
             return
@@ -94,58 +94,72 @@ class RealTimeHUDTab(QtWidgets.QWidget):
             self.hide_crosshair()
             return
 
-        # 2. ตรวจสอบว่าเมาส์อยู่ในพื้นที่ของ PlotWidget หรือไม่
+        # 2. ตรวจสอบขอบเขตเมาส์ (Scene Bounding Rect)
+        # vb คือ ViewBox ซึ่งเป็นพื้นที่วาดกราฟจริงๆ (ไม่รวมแกนตัวเลข)
+        vb = self.plot_widget.getViewBox()
         if self.plot_widget.sceneBoundingRect().contains(evt):
             # แปลงตำแหน่งเมาส์จาก Scene เป็นพิกัดในกราฟ (Data Coordinates)
-            mousePoint = self.plot_widget.getViewBox().mapSceneToView(evt)
+            mousePoint = vb.mapSceneToView(evt)
             
+            # ตรวจสอบซ้ำว่า Mouse Point อยู่ในขอบเขตแกน X และ Y ของ ViewBox หรือไม่
+            # เพื่อป้องกันเส้นแสดงค้างเมื่อเมาส์ทับแกน (Axes) หรือขอบหน้าต่าง
+            vr = vb.viewRect()
+            if not vr.contains(mousePoint):
+                self.hide_crosshair()
+                return
+
             t_data = list(self.time_history[ch_key])
             v_data = list(self.data_history[ch_key])
             
-            # กำหนดระยะ Threshold (ความไวในการดูดเข้าหาจุด) 
-            # คำนวณจาก Polling Rate เพื่อให้ Mouse Snap ได้แม่นยำ
+            # คำนวณ Threshold ความไวในการ Snap (5 เท่าของ Polling Rate)
             polling_ms = self.config['app_settings'].get('polling_ms', 1000)
             threshold = (polling_ms * 5.0) / 1000.0 
             
-            # 3. เช็คว่าตำแหน่งเมาส์อยู่ในช่วงเวลาที่มีข้อมูล (X-Axis) หรือไม่
+            # 3. เช็คว่าตำแหน่งเมาส์อยู่ในช่วงเวลาที่มีข้อมูล (X-Axis)
             if t_data[0] - threshold <= mousePoint.x() <= t_data[-1] + threshold:
                 # ใช้ numpy หา Index ของจุดที่ใกล้เมาส์ที่สุด
-                import numpy as np
                 t_array = np.array(t_data)
-                idx = (np.abs(t_array - mousePoint.x())).argmin()
+                # กรองค่า NaN ออกเฉพาะตอนหา Index เพื่อไม่ให้ Snap ลงจุดว่าง
+                valid_mask = ~np.isnan(v_data)
+                if not np.any(valid_mask):
+                    self.hide_crosshair()
+                    return
+                
+                # หาจุดที่ใกล้ที่สุดจากเฉพาะข้อมูลที่มีค่าจริง
+                valid_indices = np.where(valid_mask)[0]
+                idx_in_valid = (np.abs(t_array[valid_mask] - mousePoint.x())).argmin()
+                idx = valid_indices[idx_in_valid]
                 
                 ax, ay = t_data[idx], v_data[idx]
                 
-                # อัปเดตตำแหน่งเส้น Crosshair
+                # อัปเดตตำแหน่งและแสดงเส้น Crosshair
                 self.rt_vLine.setPos(ax)
                 self.rt_hLine.setPos(ay)
-                
-                # แสดงเส้น
                 self.rt_vLine.show()
                 self.rt_hLine.show()
                 
-                # อัปเดต Label (เวลา และ ค่า)
-                from datetime import datetime
+                # อัปเดต Label สไตล์ HUD
                 ts = datetime.fromtimestamp(ax).strftime('%H:%M:%S')
                 label_html = f"""
-                    <div style='background: rgba(0, 0, 0, 180); 
+                    <div style='background: rgba(10, 10, 10, 220); 
                                 border: 1px solid #2ECC71; 
-                                color: white; 
-                                padding: 4px; 
+                                color: #EEE; 
+                                padding: 6px; 
                                 border-radius: 4px;
-                                font-family: Consolas;'>
-                        <b>Time:</b> {ts}<br>
-                        <b>Value:</b> {ay:.2f}
+                                font-family: Consolas;
+                                font-size: 10pt;'>
+                        <b style='color: #2ECC71;'>TIME:</b> {ts}<br>
+                        <b style='color: #2ECC71;'>VALUE:</b> {ay:,.2f}
                     </div>
                 """
                 self.rt_hover_label.setHtml(label_html)
                 self.rt_hover_label.setPos(ax, ay)
                 self.rt_hover_label.show()
-                return # จบการทำงานแบบโชว์เส้น
+                return 
 
-        # 4. หากไม่เข้าเงื่อนไขใดๆ (เมาส์ออกนอกกราฟ) ให้ซ่อนเส้นทั้งหมด
+        # 4. หากเมาส์หลุดออกจากพื้นที่ ViewBox ให้ซ่อนทันที
         self.hide_crosshair()
-
+        
     def hide_crosshair(self):
         """ฟังก์ชันช่วยซ่อนเส้น Crosshair ทั้งหมด"""
         if hasattr(self, 'rt_vLine'): self.rt_vLine.hide()
