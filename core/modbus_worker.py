@@ -7,42 +7,120 @@ from pymodbus.client import AsyncModbusSerialClient
 from ui.device_drivers import DRIVERS
 
 class ErrorAggregator:
-    def __init__(self, aggregation_window_minutes=60, debug_dir="debug_logs"):
-        self.debug_dir = debug_dir
-        self.errors = []
+    def __init__(self, debug_conf, error_json_path="error.json"):
+        # 1. โหลดการตั้งค่าจาก Config (Requirement 1)
+        self.debug_dir = debug_conf.get("log_dir", "debug_logs")
+        self.log_level = str(debug_conf.get("level", "OFF")).upper()
         os.makedirs(self.debug_dir, exist_ok=True)
+        
+        # 2. โหลด Error Mapping (Requirement 4)
+        try:
+            with open(error_json_path, 'r', encoding='utf-8') as f:
+                self.error_map = json.load(f)
+        except Exception as e:
+            print(f"❌ Failed to load error.json: {e}")
+            self.error_map = {"ERR_TYPE": {}, "ERR_MOD": {}}
 
-    def add_error(self, node_id, address, error_type, message):
+        self.errors = [] # สำหรับ Summary รายงานหน้าจอ (Feature เดิม)
+        
+        # 3. State สำหรับ Tracking Error
+        self.error_tracker = {}
+        
+        # รองรับ Severity และ ALL/OFF (Requirement 2 & 3)
+        self.severity_order = {"OFF": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4, "ALL": 99}
+
+    def _should_log(self, severity):
+        if self.log_level == "OFF": return False
+        if self.log_level == "ALL": return True
+        
+        target_val = self.severity_order.get(self.log_level, 0)
+        current_val = self.severity_order.get(severity.upper(), 0)
+        return current_val >= target_val
+
+    def clear_resolved_errors(self):
+        """เงื่อนไขข้อ 1: ถ้า Error หายไปเกิน 1 นาที ให้ Reset Count"""
         now = datetime.now()
-        entry = {
-            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "node_id": node_id,
-            "address": address,
-            "type": error_type,
-            "message": str(message)
-        }
+        to_delete = [k for k, v in self.error_tracker.items() if (now - v["last_seen"]).total_seconds() > 60]
+        for k in to_delete:
+            del self.error_tracker[k]
+
+    def add_error(self, node_id, address, err_type_key, err_mod_key=None):
+        now = datetime.now()
+        self.clear_resolved_errors() 
+
+        # ค้นหาข้อมูลจาก error.json
+        e_type_info = self.error_map["ERR_TYPE"].get(err_type_key, self.error_map["ERR_TYPE"].get("U_ERR", {}))
+        severity = e_type_info.get("severity", "ERROR")
+        
+        # กำหนด Description
+        description = e_type_info.get("name", "Unknown")
+        if err_mod_key:
+            mod_info = self.error_map["ERR_MOD"].get(err_mod_key)
+            if mod_info: 
+                description = mod_info.get("description", mod_info.get("name")).replace("{addr:04X}", f"{address:04X}")
+
+        # --- Feature เดิม: เก็บลง Summary List สำหรับ GUI ---
+        entry = {"timestamp": now.strftime("%Y-%m-%d %H:%M:%S"), "node_id": node_id, 
+                 "address": address, "type": err_type_key, "message": description}
         self.errors.append(entry)
         if len(self.errors) > 500: self.errors.pop(0)
 
+        # --- ส่วน Debug Log ---
+        if not self._should_log(severity): return
+
+        # เงื่อนไขข้อ 4: ERR_Type ให้ใส่ค่า Type (เช่น T_ERR) และ Err_Mod ใส่รหัส Modbus (ถ้ามี)
+        log_err_type = err_type_key
+        log_err_mod = err_mod_key if err_mod_key else "-"
+
+        error_key = (node_id, address, err_type_key, err_mod_key)
+        
+        if error_key not in self.error_tracker:
+            # Record ที่ 1: พบครั้งแรกบันทึกทันที count = 1
+            self.error_tracker[error_key] = {"count": 1, "first_seen": now, "last_seen": now}
+            self._write_log_file(node_id, address, severity, log_err_type, log_err_mod, description, 1)
+        else:
+            # อัปเดตข้อมูลการพบซ้ำ
+            self.error_tracker[error_key]["count"] += 1
+            self.error_tracker[error_key]["last_seen"] = now
+            
+            # Record ที่ 2: ถ้าผ่านไป 1 นาทีแล้วยังไม่หาย บันทึก count ล่าสุด
+            first_seen = self.error_tracker[error_key]["first_seen"]
+            if (now - first_seen).total_seconds() >= 60:
+                current_count = self.error_tracker[error_key]["count"]
+                self._write_log_file(node_id, address, severity, log_err_type, log_err_mod, description, current_count)
+                # Reset รอบการนับใหม่
+                self.error_tracker[error_key] = {"count": 0, "first_seen": now, "last_seen": now}
+
+    def _write_log_file(self, nid, addr, sev, e_type, e_mod, desc, count):
+        """บันทึกข้อมูลลงไฟล์พร้อม Header"""
+        now = datetime.now()
+        filename = f"debug_{now.strftime('%d_%m_%y')}.log"
+        filepath = os.path.join(self.debug_dir, filename)
+        
+        file_exists = os.path.isfile(filepath)
+        
+        # Header: eventT,node_ID,node_ADDR,Severity,ERR_Type,Err_Mod,Description,Err_Count
+        header = "eventT,node_ID,node_ADDR,Severity,ERR_Type,Err_Mod,Description,Err_Count\n"
+        log_line = f"{now.strftime('%d-%m-%y %H:%M:%S')},{nid},{addr},{sev},{e_type},{e_mod},{desc},{count}\n"
+        
+        try:
+            with open(filepath, "a", encoding="utf-8") as f:
+                if not file_exists:
+                    f.write(header)
+                f.write(log_line)
+        except Exception as e:
+            print(f"⚠️ Log Write Error: {e}")
+
     def get_current_summary(self):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        summary = [
-            f"📊 SYSTEM STATUS REPORT",
-            f"📅 Time: {now_str}",
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            ""
-        ]
+        summary = [f"📊 SYSTEM STATUS REPORT", f"📅 Time: {now_str}", f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
         if not self.errors:
             summary.append("✅ STATUS: ALL NODES ONLINE")
-            summary.append("📝 Note: No communication errors detected.")
         else:
             summary.append("⚠️ STATUS: ERRORS DETECTED")
             node_stats = defaultdict(int)
-            for e in self.errors:
-                node_stats[f"Node {e['node_id']} ({e['type']})"] += 1
-            for k, v in node_stats.items():
-                summary.append(f"  ❌ {k}: {v} times")
-        
+            for e in self.errors: node_stats[f"Node {e['node_id']} ({e['type']})"] += 1
+            for k, v in node_stats.items(): summary.append(f"  ❌ {k}: {v} times")
         summary.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         return "\n".join(summary)
 
@@ -58,15 +136,16 @@ class AsyncPollWorker(QtCore.QThread):
         self.debug_path = debug_path
         self._stopped = False
         self._paused = False
-        self.error_aggregator = ErrorAggregator(debug_dir=self.debug_path)
+        
+        debug_cfg = self.conf.get("debug", {"log_dir": "debug_logs", "level": "OFF"})
+        self.error_aggregator = ErrorAggregator(debug_conf=debug_cfg)
+        
         self.client = None
         self.loop = None
         self.last_report_time = time.time()
 
     def stop(self):
-        """สั่งหยุดจากภายนอก Thread แบบนุ่มนวล (Flag-based)"""
         self._stopped = True
-        print("🛑 Worker stop signal sent. Waiting for main loop to exit...")
 
     def send_error_summary(self):
         if self.error_aggregator:
@@ -74,68 +153,38 @@ class AsyncPollWorker(QtCore.QThread):
             self.error_summary_signal.emit(summary)
 
     def run(self):
-        """จุดเริ่มของ QThread"""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        
         try:
-            # รันจนกว่า main_loop จะ Return ออกมาเองเมื่อเจอ _stopped = True
             self.loop.run_until_complete(self.main_loop())
         except Exception as e:
-            print(f"ℹ️ Loop Info: {e}")
+            print(f"ℹ️ Worker Thread Info: {e}")
         finally:
-            # Cleanup: กวาดล้าง Tasks ที่ค้างอยู่แบบสุภาพก่อนปิด Loop
             try:
-                # 1. ปิด Client ก่อนเพื่อให้ Transport หยุดพยายามรับส่งข้อมูล
-                if self.client:
-                    self.client.close()
-                    print("🔌 Modbus client closed.")
-
-                # 2. ดึง Task ทั้งหมดที่ยังค้างอยู่
+                if self.client: self.client.close()
                 pending = asyncio.all_tasks(self.loop)
-                
                 if pending:
-                    # 3. สั่ง Cancel ทุก Task ทันที
-                    for task in pending:
-                        task.cancel()
-                    
-                    # 4. รัน Loop ต่ออีกนิดเพื่อให้ Tasks รับทราบการโดน Cancel
-                    # return_exceptions=True เพื่อไม่ให้มันเด้ง Error ตอนเรากำลังจะปิด
-                    self.loop.run_until_complete(
-                        asyncio.gather(*pending, return_exceptions=True)
-                    )
-                    print(f"🧹 Cleaned up {len(pending)} tasks.")
-            except Exception as cleanup_err:
-                print(f"⚠️ Cleanup error: {cleanup_err}")
-            
-            if self.client:
-                self.client.close()
+                    for task in pending: task.cancel()
+                    self.loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except: pass
             self.loop.close()
-            print("🔒 Event loop closed safely.")
             self.finished_signal.emit()
 
     async def main_loop(self):
         mb = self.conf['modbus']
         self.client = AsyncModbusSerialClient(
             port=os.path.expanduser(mb['port_name']),
-            baudrate=mb['baudrate'],
-            timeout=mb['timeout'],
-            parity=mb['parity'],
-            stopbits=mb['stopbits'],
-            bytesize=mb['bytesize']
+            baudrate=mb['baudrate'], timeout=mb['timeout'],
+            parity=mb['parity'], stopbits=mb['stopbits'], bytesize=mb['bytesize']
         )
         
         connected = await self.client.connect()
-        if connected:
-            print(f"✅ Connected to {mb['port_name']}")
-            self.send_error_summary()
-        else:
-            print(f"❌ Failed to connect to {mb['port_name']}")
+        if not connected:
+            self.error_aggregator.add_error("SYS", 0, "C_ERR")
 
         while not self._stopped:
             if self._paused:
-                await asyncio.sleep(0.1)
-                continue
+                await asyncio.sleep(0.1); continue
 
             start_ts = time.perf_counter()
             batch_data, log_buffer = {}, []
@@ -157,17 +206,12 @@ class AsyncPollWorker(QtCore.QThread):
                 self.send_error_summary()
                 self.last_report_time = time.time()
 
-            # --- Responsive Sleeping ---
-            # แบ่งการรอเป็นช่วงละ 0.1s เพื่อให้เช็ค _stopped ได้ทันทีที่กดปิดโปรแกรม
             polling_sec = self.conf['app_settings']['polling_ms'] / 1000.0
             wait_time = max(0.01, polling_sec - (time.perf_counter() - start_ts))
             end_wait = time.perf_counter() + wait_time
-            
             while time.perf_counter() < end_wait:
                 if self._stopped: break
                 await asyncio.sleep(0.1)
-
-        print("👋 Main loop exited cleanly.")
 
     async def read_node_batch(self, node_cfg):
         nid = node_cfg['node_id']
@@ -196,9 +240,10 @@ class AsyncPollWorker(QtCore.QThread):
                         gui_batch[f"{node_cfg['node_name']}_{ch['name']}"] = val
                         log_rows.append([ts, nid, ch['address'], val, ch['name']])
                 else:
-                    self.error_aggregator.add_error(nid, addr_start, "MODBUS_ERR", "Invalid Response")
+                    err_code = hex(res.exception_code) if hasattr(res, 'exception_code') else "0x00"
+                    self.error_aggregator.add_error(nid, addr_start, "M_ERR", err_code)
             except Exception as e:
-                self.error_aggregator.add_error(nid, nid, "TIMEOUT", str(e))
+                self.error_aggregator.add_error(nid, addr_start, "T_ERR")
         
         return log_rows, gui_batch
 

@@ -46,7 +46,7 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.ui_refresh_timer.timeout.connect(self.refresh_active_tab)
         self.ui_refresh_timer.start(200)
 
-        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility v1.6.3")
+        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility v1.6.4")
         self.resize(1280, 850)
 
     # --- [ CORE FUNCTIONS ] ---

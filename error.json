@@ -1,0 +1,102 @@
+{ "ERR_TYPE": {
+    "C_ERR": {
+        "name": "Connection Error",
+        "description": "ไม่สามารถเชื่อมต่อกับอุปกรณ์ได้",
+        "severity": "CRITICAL",
+        "action": "ตรวจสอบการเชื่อมต่อทางกายภาพและพอร์ตอนุกรม",
+        "recoverable": "True"
+    },
+    "M_ERR": {
+        "name": "Modbus Protocol Error",
+        "description": "ข้อผิดพลาดทางโปรโตคอล Modbus",
+        "severity": "ERROR",
+        "action": "ตรวจสอบการตั้งค่า parity, baudrate, stopbits",
+        "recoverable": "True"
+    },
+    "T_ERR": {
+        "name": "Timeout Error",
+        "description": "อุปกรณ์ไม่ตอบสนองภายในเวลาที่กำหนด",
+        "severity": "WARNING",
+        "action": "ตรวจสอบว่า device ทำงานอยู่ หรือเพิ่มค่า timeout",
+        "recoverable": "True"
+    },
+    "F_ERR": {
+        "name": "Frame Error",
+        "description": "ไม่สามารถถอดรหัสเฟรมข้อมูลได้",
+        "severity": "ERROR",
+        "action": "สัญญาณรบกวนหรือการตั้งค่าไม่ถูกต้อง",
+        "recoverable": "True"
+    },
+    "U_ERR": {
+        "name": "Undefined Error",
+        "description": "ข้อผิดพลาดที่ไม่ทราบสาเหตุ",
+        "severity": "ERROR",
+        "action": "ตรวจสอบ log เพิ่มเติม",
+        "recoverable": "True"
+    }
+},
+"ERR_MOD": {
+    "0x01": {
+        "name": "Illegal Function",
+        "description": "ฟังก์ชันที่ไม่รองรับสำหรับอุปกรณ์นี้",
+        "severity": "ERROR",
+        "action": "ตรวจสอบว่า slave รองรับฟังก์ชันนี้หรือไม่",
+        "recoverable": "False"
+    },
+    "0x02": {
+        "name": "Illegal Data Address",
+        "description": "ตำแหน่งข้อมูลไม่ถูกต้อง หรือไม่มีในอุปกรณ์",
+        "severity": "ERROR",
+        "action": "ตรวจสอบว่า address 0x{addr:04X} มีอยู่ในอุปกรณ์นี้หรือไม่",
+        "recoverable": "False"
+    },
+    "0x03": {
+        "name": "Illegal Data Value",
+        "description": "ค่าข้อมูลไม่ถูกต้องสำหรับ register นี้",
+        "severity": "ERROR",
+        "action": "ตรวจสอบช่วงค่าที่รองรับ",
+        "recoverable": "False"
+    },
+    "0x04": {
+        "name": "Slave Device Failure",
+        "description": "อุปกรณ์ขัดข้องหรือทำงานผิดปกติ",
+        "severity": "CRITICAL",
+        "action": "ตรวจสอบการทำงานของอุปกรณ์ หรือรีเซ็ตอุปกรณ์",
+        "recoverable": "True"
+    },
+    "0x05": {
+        "name": "Acknowledge",
+        "description": "อุปกรณ์รับคำขอแล้ว แต่กำลังประมวลผล",
+        "severity": "INFO",
+        "action": "รอสักครู่แล้วลองใหม่อีกครั้ง",
+        "recoverable": "True"
+    },
+    "0x06": {
+        "name": "Slave Device Busy",
+        "description": "อุปกรณ์กำลังยุ่ง ไม่สามารถรับคำขอได้",
+        "severity": "WARNING",
+        "action": "รอสักครู่แล้วลองใหม่ (อาจต้องเพิ่ม delay)",
+        "recoverable": "True"
+    },
+    "0x08": {
+        "name": "Memory Parity Error",
+        "description": "หน่วยความจำของอุปกรณ์มี parity error",
+        "severity": "CRITICAL",
+        "action": "ตรวจสอบฮาร์ดแวร์หรือรีเซ็ตอุปกรณ์",
+        "recoverable": "True"
+    },
+    "0x0A": { 
+        "name": "Gateway Path Unavailable",
+        "description": "Gateway ไม่พร้อมใช้งาน",
+        "severity": "ERROR",
+        "action": "ตรวจสอบการเชื่อมต่อ gateway",
+        "recoverable": "True"
+    },
+    "0x0B": {  
+        "name": "Gateway Target Failed",
+        "description": "ไม่สามารถเข้าถึงอุปกรณ์เป้าหมายผ่าน gateway",
+        "severity": "ERROR",
+        "action": "ตรวจสอบว่า device เชื่อมต่อกับ gateway อยู่หรือไม่",
+        "recoverable": "True"
+    }}
+}
