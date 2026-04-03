@@ -233,7 +233,7 @@ class AsyncPollWorker(QtCore.QThread):
                     res = await self.client.read_holding_registers(address=addr_start, count=addr_count, slave=nid)
 
                 if res and not res.isError():
-                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                    ts = datetime.now().strftime("%d-%m-%y %H:%M:%S")
                     for ch in targets:
                         raw = res.registers[ch['address'] - addr_start]
                         val = round(driver.scale_value(raw, ch), 2)
@@ -248,9 +248,11 @@ class AsyncPollWorker(QtCore.QThread):
         return log_rows, gui_batch
 
     def save_to_csv(self, rows):
-        f_path = os.path.join(self.log_path, f"log_{datetime.now().strftime('%Y-%m-%d_%H')}.csv")
+        f_path = os.path.join(self.log_path, f"log_{datetime.now().strftime('%d-%m-%y_%H')}.csv")
         exists = os.path.isfile(f_path)
         with open(f_path, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             if not exists: writer.writerow(["date/time", "node_id", "address", "Value", "name"])
             writer.writerows(rows)
+
+          
