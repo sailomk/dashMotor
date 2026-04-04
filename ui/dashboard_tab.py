@@ -212,7 +212,14 @@ class RealTimeHUDTab(QtWidgets.QWidget):
             
             # --- 4. Dynamic Headroom ---
             y_upper_limit = global_max_y * 1.35 if global_max_y > 0 else 100
-            self.plot_widget.setYRange(0, y_upper_limit, padding=0)
+            y_min_padding = -(global_max_y * 0.05) if global_max_y > 10 else -2.0
+            if global_max_y <= 0:
+                # กรณีไม่มีข้อมูล หรือข้อมูลเป็น 0 ทั้งหมด
+                self.plot_widget.setYRange(-5, 100, padding=0) 
+            else:
+                y_upper_limit = global_max_y * 1.35
+            self.plot_widget.setYRange(y_min_padding, y_upper_limit, padding=0)
+            #self.plot_widget.setYRange(0, y_upper_limit, padding=0)
 
             # --- 5. Style Logic (Freshness & Alarm) ---
             is_fresh = (now - latest_time) < staleness_timeout
