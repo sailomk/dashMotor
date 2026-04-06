@@ -11,6 +11,7 @@ from ui.all_nodes_view import AllNodesDashboard
 from ui.history_tab import HistoryViewerTab
 from ui.error_tab import ErrorSummaryTab
 from ui.benchmark_page import BenchmarkPage
+from PySide6.QtWidgets import QMessageBox, QApplication
 
 pg.setConfigOptions(antialias=True, useOpenGL=False)
 class MonitorApp(QtWidgets.QMainWindow):
@@ -29,6 +30,8 @@ class MonitorApp(QtWidgets.QMainWindow):
 
         # 2. Worker Setup
         self.worker = AsyncPollWorker(self.config, self.log_path, self.debug_path)
+        self.worker.error_summary_signal.connect(self.handle_critical_error)
+        self.worker.finished_signal.connect(self.on_worker_finished)
 
         # 3. UI Setup
         self.init_ui()
@@ -36,6 +39,7 @@ class MonitorApp(QtWidgets.QMainWindow):
 
         # 4. Signal Connection
         self.worker.data_signal.connect(self.on_data_received)
+        self.worker.error_summary_signal.connect(self.handle_error_summary)
         if hasattr(self, 'error_tab'):
             self.worker.error_summary_signal.connect(self.error_tab.update_error_log)
         
@@ -46,7 +50,7 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.ui_refresh_timer.timeout.connect(self.refresh_active_tab)
         self.ui_refresh_timer.start(200)
 
-        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility v1.6.4")
+        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility v1.6.5")
         self.resize(1280, 850)
 
     # --- [ CORE FUNCTIONS ] ---
@@ -278,7 +282,39 @@ class MonitorApp(QtWidgets.QMainWindow):
             self.worker.stop(); self.worker.wait(2000)
         event.accept()
 
+    # ตัวอย่าง Logic ใน Main UI
+    def on_worker_finished(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText("Serial Port Connection Failed!")
+        msg.setInformativeText("Please check your Serial Port or cable.")
+        msg.setStandardButtons(QMessageBox.Ok)
+        if msg.exec() == QMessageBox.Ok:
+            QApplication.quit() # ปิดโปรแกรมหลังจากกด OK
 
+    def handle_critical_error(self, summary_text):
+        # เก็บข้อความไว้ใช้ตอนฟังก์ชัน on_worker_finished ทำงาน
+        self.last_critical_message = summary_text
+
+    def handle_error_summary(self, summary_text):
+        from PySide6.QtWidgets import QMessageBox
+
+        msg = QMessageBox(self)
+        if "Quarantined" in summary_text or "ERROR" in summary_text:
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("System Check - Warnings Found")
+        
+
+        msg.setText("Pre-Operational Check Completed")
+        msg.setInformativeText(f"{summary_text}\n\nClick OK to start program.")
+        msg.setStandardButtons(QMessageBox.Ok)
+
+        # เมื่อ User กด OK
+        if msg.exec() == QMessageBox.Ok:
+            # สั่งให้ Worker หลุดจาก start_event.wait() เพื่อเริ่ม loop ปกติ
+            if self.worker:
+                self.worker.resume_start()
+                
 class HorizontalLEDBar(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)

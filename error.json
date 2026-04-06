@@ -33,6 +33,13 @@
         "severity": "ERROR",
         "action": "ตรวจสอบ log เพิ่มเติม",
         "recoverable": "True"
+    },
+     "Q_ERR": {
+        "name": "Quarantine Error",
+        "description": "ติดดต่กับอุปกรณ์ได้ แต่ข้อมูลผิดปกติ ตอนเริ่มต้นระบบ",
+        "severity": "ERROR",
+        "action": "ตรวจสอบการทำงานของอุปกรณ์ หรือรีเซ็ตอุปกรณ์",
+        "recoverable": "False"
     }
 },
 "ERR_MOD": {

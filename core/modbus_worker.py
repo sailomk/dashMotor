@@ -144,6 +144,13 @@ class AsyncPollWorker(QtCore.QThread):
         self.loop = None
         self.last_report_time = time.time()
 
+        self.start_event = None
+
+    def resume_start(self):
+        """เรียกจาก UI เมื่อกด OK ที่ Popup เพื่อให้ Worker เดินหน้าต่อ"""
+        if self.loop:
+            self.loop.call_soon_threadsafe(self.start_event.set)
+
     def stop(self):
         self._stopped = True
 
@@ -169,8 +176,40 @@ class AsyncPollWorker(QtCore.QThread):
             except: pass
             self.loop.close()
             self.finished_signal.emit()
+    
+    async def quarantine_check(self):
+        """ตรวจสอบ Node ทุกตัวก่อนเริ่มงานจริง ถ้าพังให้ Quarantine"""
+        for node in self.conf.get('nodes', []):
+            # ข้าม Node ที่ถูกปิดใช้งานมาจาก config อยู่แล้ว
+            if not node.get('enabled', True):
+                continue
+                
+            nid = node['node_id']
+            # เลือกตรวจสอบจาก Channel แรกที่เจอ
+            if not node.get('channels'): continue
+            ch = node['channels'][0]
+            addr = ch['address']
+            
+            try:
+                if ch.get('type', 'input') == 'input':
+                    res = await self.client.read_input_registers(address=addr, count=1, slave=nid)
+                else:
+                    res = await self.client.read_holding_registers(address=addr, count=1, slave=nid)
 
+                # ถ้าติดต่อไม่ได้ หรือ Modbus คืนค่า Error Exception
+                if not res or res.isError():
+                    node['enabled'] = False # Quarantine ทันที
+                    self.error_aggregator.add_error(nid, addr, "Q_ERR")
+                    print(f"⚠️ Node {nid} Quarantined: Communication Failed during startup.")
+            
+            except Exception:
+                node['enabled'] = False
+                self.error_aggregator.add_error(nid, addr, "Q_ERR")
+                print(f"⚠️ Node {nid} Quarantined: Exception during startup check.")
+                
     async def main_loop(self):
+        self.start_event = asyncio.Event()
+        
         mb = self.conf['modbus']
         self.client = AsyncModbusSerialClient(
             port=os.path.expanduser(mb['port_name']),
@@ -178,10 +217,35 @@ class AsyncPollWorker(QtCore.QThread):
             parity=mb['parity'], stopbits=mb['stopbits'], bytesize=mb['bytesize']
         )
         
-        connected = await self.client.connect()
+        # 1. เชื่อมต่อ Serial Port
+        try:
+            connected = await self.client.connect()
+        except Exception:
+            connected = False
+
         if not connected:
             self.error_aggregator.add_error("SYS", 0, "C_ERR")
+            self.send_error_summary() # ส่งสัญญาณเพื่อให้ UI แสดง Popup และปิดโปรแกรม
+            return 
 
+        # 2. ตรวจสอบและ Quarantine อุปกรณ์ที่พัง
+        # เก็บจำนวน Error ก่อนเช็ค
+        initial_error_count = len(self.error_aggregator.errors)
+        
+        await self.quarantine_check()
+        
+        # ตรวจสอบว่ามี Node โดน Quarantine (Q_ERR) เพิ่มขึ้นมาไหม
+        has_quarantine = len(self.error_aggregator.errors) > initial_error_count
+
+        if has_quarantine:
+            self.send_error_summary() # ส่งสัญญาณ Popup ครั้งเดียวตอนเริ่ม
+            print("System: Waiting for user to acknowledge quarantined nodes...")
+            await self.start_event.wait() 
+        else:
+            # ถ้าไม่มีปัญหา ให้เริ่มทำงานทันทีโดยไม่ต้องมี Popup
+            self.start_event.set()
+            print("System: Normal operation started.")
+        
         while not self._stopped:
             if self._paused:
                 await asyncio.sleep(0.1); continue
@@ -212,8 +276,11 @@ class AsyncPollWorker(QtCore.QThread):
             while time.perf_counter() < end_wait:
                 if self._stopped: break
                 await asyncio.sleep(0.1)
-
+                
     async def read_node_batch(self, node_cfg):
+        if not node_cfg.get('enabled', True):
+            return [], {} # คืนค่าว่างกลับไปทันที ไม่ต้องเสียเวลา Modbus Read
+        
         nid = node_cfg['node_id']
         driver = DRIVERS.get(node_cfg.get('driver', 'DEFAULT').upper(), DRIVERS['DEFAULT'])
         gui_batch, log_rows = {}, []
