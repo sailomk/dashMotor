@@ -25,6 +25,7 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.time_history = {} 
         self.node_widgets = {} 
         
+        
         self.log_path = self.prepare_dir(self.config['app_settings']['log_dir'])
         self.debug_path = self.prepare_dir(self.config['debug']['log_dir'])
 
@@ -36,6 +37,8 @@ class MonitorApp(QtWidgets.QMainWindow):
         # 3. UI Setup
         self.init_ui()
         self.load_styles()
+        self.initial_popup_done = False
+        self._is_closing = False
 
         # 4. Signal Connection
         self.worker.data_signal.connect(self.on_data_received)
@@ -278,42 +281,57 @@ class MonitorApp(QtWidgets.QMainWindow):
             self.rt_tab.update_ui()
 
     def closeEvent(self, event):
+        self._is_closing = True
         if hasattr(self, 'worker'):
             self.worker.stop(); self.worker.wait(2000)
         event.accept()
 
     # ตัวอย่าง Logic ใน Main UI
     def on_worker_finished(self):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setText("Serial Port Connection Failed!")
-        msg.setInformativeText("Please check your Serial Port or cable.")
-        msg.setStandardButtons(QMessageBox.Ok)
-        if msg.exec() == QMessageBox.Ok:
-            QApplication.quit() # ปิดโปรแกรมหลังจากกด OK
+        if self._is_closing:
+            return
+        if not self.initial_popup_done:
+            port = self.config['modbus'].get('port_name', 'Unknown Port')
+            msg = QMessageBox() 
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("System Check")
+            msg.setText(" Connection Failed! " + " " * 10) # เว้นวรรคเพื่อขยายขนาดหน้าต่าง
+            msg.setInformativeText(f" Check ({port})")
+            msg.setStandardButtons(QMessageBox.Ok)
+            if msg.exec() == QMessageBox.Ok:
+                QApplication.quit() # ปิดโปรแกรมหลังจากกด OK
 
     def handle_critical_error(self, summary_text):
         # เก็บข้อความไว้ใช้ตอนฟังก์ชัน on_worker_finished ทำงาน
         self.last_critical_message = summary_text
 
     def handle_error_summary(self, summary_text):
-        from PySide6.QtWidgets import QMessageBox
+        if self._is_closing or not self.worker:
+            return
 
-        msg = QMessageBox(self)
-        if "Quarantined" in summary_text or "ERROR" in summary_text:
+        if not self.initial_popup_done:
+            lines = summary_text.split('\n')
+            
+            # แก้ไขเงื่อนไข Filter: ให้เก็บบรรทัดที่มี Node และ Addr ไว้
+            short_summary = [
+                line.strip() for line in lines 
+                if "❌" in line or "⚠️" in line or "DETECTED" in line or "Addr:" in line
+            ]
+            
+            display_text = "\n".join(short_summary) if short_summary else "Some nodes are offline."
+            
+            from PySide6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle("System Check - Warnings Found")
-        
-
-        msg.setText("Pre-Operational Check Completed")
-        msg.setInformativeText(f"{summary_text}\n\nClick OK to start program.")
-        msg.setStandardButtons(QMessageBox.Ok)
-
-        # เมื่อ User กด OK
-        if msg.exec() == QMessageBox.Ok:
-            # สั่งให้ Worker หลุดจาก start_event.wait() เพื่อเริ่ม loop ปกติ
-            if self.worker:
+            msg.setWindowTitle("System Check")
+            # เพิ่มช่องว่างเพื่อให้ขนาด Popup กว้างขึ้นพอดีกับข้อความ Address
+            msg.setText("Device Communication Issues" + " " * 15) 
+            msg.setInformativeText(display_text)
+            msg.setStandardButtons(QMessageBox.Ok)
+            
+            if msg.exec() == QMessageBox.Ok:
                 self.worker.resume_start()
+                self.initial_popup_done = True
                 
 class HorizontalLEDBar(QtWidgets.QWidget):
     def __init__(self, parent=None):

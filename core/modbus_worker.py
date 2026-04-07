@@ -113,17 +113,31 @@ class ErrorAggregator:
 
     def get_current_summary(self):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        summary = [f"📊 SYSTEM STATUS REPORT", f"📅 Time: {now_str}", f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
+        summary = [f"📊 SYSTEM STATUS REPORT", f"📅 Time: {now_str}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
+        
         if not self.errors:
             summary.append("✅ STATUS: ALL NODES ONLINE")
         else:
             summary.append("⚠️ STATUS: ERRORS DETECTED")
-            node_stats = defaultdict(int)
-            for e in self.errors: node_stats[f"Node {e['node_id']} ({e['type']})"] += 1
-            for k, v in node_stats.items(): summary.append(f"  ❌ {k}: {v} times")
+            
+            # ดึงรายการ Node + Address ที่ไม่ซ้ำกันเพื่อแสดงใน Popup ครั้งแรก
+            # และนับจำนวนครั้งที่เกิดขึ้นสะสม (Feature เดิม)
+            node_stats = {} 
+            for e in self.errors:
+                key = (e['node_id'], e['address'])
+                node_stats[key] = node_stats.get(key, 0) + 1
+            
+            # แสดงรายการ: ❌ Node ID | Addr: 0xXXXX (พบ X ครั้ง)
+            for (nid, addr), count in sorted(node_stats.items()):
+                nid_length = len(str(nid))
+                if nid_length > 1:
+                    summary.append(f"  ❌ Node {nid} |  Addr: 0x{addr:04X} ({count} times)")
+                else:
+                    summary.append(f"  ❌ Node {nid}  |  Addr: 0x{addr:04X} ({count} times)")
+                
         summary.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         return "\n".join(summary)
-
+    
 class AsyncPollWorker(QtCore.QThread):
     data_signal = QtCore.Signal(dict, float)
     error_summary_signal = QtCore.Signal(str)
@@ -178,35 +192,33 @@ class AsyncPollWorker(QtCore.QThread):
             self.finished_signal.emit()
     
     async def quarantine_check(self):
-        """ตรวจสอบ Node ทุกตัวก่อนเริ่มงานจริง ถ้าพังให้ Quarantine"""
+        """ตรวจสอบทุก Channel ของทุก Node ก่อนเริ่มงาน"""
         for node in self.conf.get('nodes', []):
-            # ข้าม Node ที่ถูกปิดใช้งานมาจาก config อยู่แล้ว
-            if not node.get('enabled', True):
-                continue
-                
+            if not node.get('enabled', True): continue
+            
             nid = node['node_id']
-            # เลือกตรวจสอบจาก Channel แรกที่เจอ
-            if not node.get('channels'): continue
-            ch = node['channels'][0]
-            addr = ch['address']
-            
-            try:
-                if ch.get('type', 'input') == 'input':
-                    res = await self.client.read_input_registers(address=addr, count=1, slave=nid)
-                else:
-                    res = await self.client.read_holding_registers(address=addr, count=1, slave=nid)
-
-                # ถ้าติดต่อไม่ได้ หรือ Modbus คืนค่า Error Exception
-                if not res or res.isError():
-                    node['enabled'] = False # Quarantine ทันที
-                    self.error_aggregator.add_error(nid, addr, "Q_ERR")
-                    print(f"⚠️ Node {nid} Quarantined: Communication Failed during startup.")
-            
-            except Exception:
-                node['enabled'] = False
-                self.error_aggregator.add_error(nid, addr, "Q_ERR")
-                print(f"⚠️ Node {nid} Quarantined: Exception during startup check.")
+            # เปลี่ยนจากเช็คแค่ตัวแรก เป็นการวนลูปเช็คทุก Channel ใน Node นี้
+            for ch in node.get('channels', []):
+                if not ch.get('enabled', True): continue
                 
+                addr = ch['address']
+                try:
+                    if ch.get('type', 'input') == 'input':
+                        #print(f"Checking Node {nid} Channel {ch['name']} (Address {addr})...")
+                        res = await self.client.read_input_registers(address=addr, count=1, slave=nid)
+                    else:
+                        res = await self.client.read_holding_registers(address=addr, count=1, slave=nid)
+
+                    if not res or res.isError():
+                        # ถ้ามีแม้แต่ Address เดียวพัง ให้ Quarantine ทั้ง Node ทันที
+                        node['enabled'] = False 
+                        self.error_aggregator.add_error(nid, addr, "Q_ERR")
+                        break # ออกจากลูป Channel ไปเช็ค Node ถัดไป
+                except Exception:
+                    node['enabled'] = False
+                    self.error_aggregator.add_error(nid, addr, "Q_ERR")
+                    break
+                            
     async def main_loop(self):
         self.start_event = asyncio.Event()
         
@@ -225,27 +237,27 @@ class AsyncPollWorker(QtCore.QThread):
 
         if not connected:
             self.error_aggregator.add_error("SYS", 0, "C_ERR")
-            self.send_error_summary() # ส่งสัญญาณเพื่อให้ UI แสดง Popup และปิดโปรแกรม
             return 
 
-        # 2. ตรวจสอบและ Quarantine อุปกรณ์ที่พัง
-        # เก็บจำนวน Error ก่อนเช็ค
+        # --- ส่วนที่แก้ไข: เรียกใช้ quarantine_check ที่เช็คทุก Channel ---
+        # เก็บจำนวน error ก่อนเช็คเพื่อดูว่ามี node ไหนโดน quarantine หรือไม่
         initial_error_count = len(self.error_aggregator.errors)
         
         await self.quarantine_check()
         
-        # ตรวจสอบว่ามี Node โดน Quarantine (Q_ERR) เพิ่มขึ้นมาไหม
-        has_quarantine = len(self.error_aggregator.errors) > initial_error_count
+        # ตรวจสอบว่ามี error ใหม่เพิ่มขึ้นมา (Q_ERR) หรือไม่
+        nodes_quarantined = len(self.error_aggregator.errors) > initial_error_count
 
-        if has_quarantine:
-            self.send_error_summary() # ส่งสัญญาณ Popup ครั้งเดียวตอนเริ่ม
+        # 3. ตัดสินใจเรื่อง Popup (เฉพาะตอนเริ่ม)
+        if nodes_quarantined:
             print("System: Waiting for user to acknowledge quarantined nodes...")
-            await self.start_event.wait() 
+            self.send_error_summary() # ส่งสัญญาณ Popup
+            await self.start_event.wait() # หยุดรอ OK จาก User
         else:
-            # ถ้าไม่มีปัญหา ให้เริ่มทำงานทันทีโดยไม่ต้องมี Popup
+            print("System: All nodes passed. Starting Polling Loop...")
             self.start_event.set()
-            print("System: Normal operation started.")
-        
+
+        self.last_report_time = time.time()
         while not self._stopped:
             if self._paused:
                 await asyncio.sleep(0.1); continue
@@ -255,6 +267,8 @@ class AsyncPollWorker(QtCore.QThread):
 
             for node in self.conf.get('nodes', []):
                 if self._stopped: break
+                if not node.get('enabled', True): continue
+
                 node_log, node_gui = await self.read_node_batch(node)
                 batch_data.update(node_gui)
                 log_buffer.extend(node_log)
