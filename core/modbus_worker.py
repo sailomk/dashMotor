@@ -211,11 +211,14 @@ class AsyncPollWorker(QtCore.QThread):
 
                     if not res or res.isError():
                         # ถ้ามีแม้แต่ Address เดียวพัง ให้ Quarantine ทั้ง Node ทันที
-                        node['enabled'] = False 
+                        ch['enabled'] = False
+                        #node['enabled'] = False 
+
                         self.error_aggregator.add_error(nid, addr, "Q_ERR")
                         break # ออกจากลูป Channel ไปเช็ค Node ถัดไป
                 except Exception:
-                    node['enabled'] = False
+                    ch['enabled'] = False
+                    #node['enabled'] = False
                     self.error_aggregator.add_error(nid, addr, "Q_ERR")
                     break
                             
@@ -253,6 +256,7 @@ class AsyncPollWorker(QtCore.QThread):
             print("System: Waiting for user to acknowledge quarantined nodes...")
             self.send_error_summary() # ส่งสัญญาณ Popup
             await self.start_event.wait() # หยุดรอ OK จาก User
+            
         else:
             print("System: All nodes passed. Starting Polling Loop...")
             self.start_event.set()

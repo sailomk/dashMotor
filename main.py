@@ -186,8 +186,7 @@ class MonitorApp(QtWidgets.QMainWindow):
         if self.node_widgets:
             first_key = list(self.node_widgets.keys())[0]
             self.switch_node(first_key, self.config['nodes'][0]['channels'][0].get('address', 0), first_key.replace("_", " - "))
-            
-                       
+                                   
     def switch_node(self, ch_key, addr, display_name):
         """
         สลับการแสดงผลกราฟและอัปเดต HUD ข้อมูล
@@ -217,89 +216,6 @@ class MonitorApp(QtWidgets.QMainWindow):
 
         # 4. บังคับให้หน้ากราฟอัปเดต UI ทันทีไม่ต้องรอ Timer
         self.rt_tab.update_ui()
-        
-
-    @QtCore.Slot(dict, float)
-    def on_data_received(self, batch, timestamp):
-        max_pts = self.config['app_settings'].get('max_points', 300)
-        
-        polling_sec = self.config['app_settings'].get('polling_ms', 1000) / 1000.0
-        gap_threshold = polling_sec * 2.5
-
-        for ch_key, val in batch.items():
-            # เก็บ History
-            if ch_key not in self.data_history:
-                self.data_history[ch_key], self.time_history[ch_key] = [], []
-
-            # ตรวจสอบว่ามีช่องว่างของเวลาหรือไม่ (Data Lost Check)
-            if self.time_history[ch_key]:
-                last_ts = self.time_history[ch_key][-1]
-                # ถ้าเวลาปัจจุบัน ห่างจากเวลาล่าสุดเกินกำหนด
-                if (timestamp - last_ts) > gap_threshold:
-                    # แทรกค่า NaN (Not a Number) เพื่อสั่งให้กราฟ "หยุดวาด" เส้นเชื่อม
-                    self.data_history[ch_key].append(float('nan'))
-                    self.time_history[ch_key].append(last_ts + 0.001) # แทรกเวลาจำลองต่อท้ายจุดเดิมเล็กน้อย
-
-            self.data_history[ch_key].append(val)
-            self.time_history[ch_key].append(timestamp)
-            
-            # ควบคุมจำนวนจุดข้อมูล
-            while len(self.data_history[ch_key]) > max_pts:
-                self.data_history[ch_key].pop(0)
-                self.time_history[ch_key].pop(0)
-
-
-            if len(self.data_history[ch_key]) > max_pts:
-                self.data_history[ch_key].pop(0); self.time_history[ch_key].pop(0)
-            
-            # อัปเดต Card (เฉพาะจุดที่มีข้อมูล)
-            if ch_key in self.node_widgets:
-                w = self.node_widgets[ch_key]
-                percent = min(100, max(0, (val / w['max']) * 100))
-                
-                # 1. อัปเดตตัวเลขค่าจริง (ดึง Style จาก ValueDisplay ใน QSS)
-                w['val_lbl'].setText(f"{val:,.2f}")
-                
-                # 2. อัปเดตตัวเลข % และเปลี่ยนสีตามระดับ (Dynamic Logic)
-                w['perc_lbl'].setText(f"{int(percent)}%")
-                if percent >= 90:
-                    w['perc_lbl'].setStyleSheet("color: #FF3333; font-weight: bold;") # แดง
-                elif percent >= 70:
-                    w['perc_lbl'].setStyleSheet("color: #FFCC00; font-weight: bold;") # เหลือง
-                else:
-                    w['perc_lbl'].setStyleSheet("color: #2ECC71; font-weight: bold;") # เขียวปกติ
-                
-                # 3. อัปเดต LED Bar 20 ช่อง
-                w['led'].set_value(val, w['max'])
-
-        # Sync หน้าจออื่น
-        if hasattr(self, 'matrix_tab'): self.matrix_tab.update_values(batch)
-        if self.tabs.currentIndex() == 0: self.rt_tab.update_ui()
-
-    def refresh_active_tab(self):
-        if self.tabs.currentIndex() == 0:
-            self.rt_tab.update_ui()
-
-    def closeEvent(self, event):
-        self._is_closing = True
-        if hasattr(self, 'worker'):
-            self.worker.stop(); self.worker.wait(2000)
-        event.accept()
-
-    # ตัวอย่าง Logic ใน Main UI
-    def on_worker_finished(self):
-        if self._is_closing:
-            return
-        if not self.initial_popup_done:
-            port = self.config['modbus'].get('port_name', 'Unknown Port')
-            msg = QMessageBox() 
-            msg.setIcon(QMessageBox.Critical)
-            msg.setWindowTitle("System Check")
-            msg.setText(" Connection Failed! " + " " * 10) # เว้นวรรคเพื่อขยายขนาดหน้าต่าง
-            msg.setInformativeText(f" Check ({port})")
-            msg.setStandardButtons(QMessageBox.Ok)
-            if msg.exec() == QMessageBox.Ok:
-                QApplication.quit() # ปิดโปรแกรมหลังจากกด OK
 
     def handle_critical_error(self, summary_text):
         # เก็บข้อความไว้ใช้ตอนฟังก์ชัน on_worker_finished ทำงาน
@@ -332,15 +248,116 @@ class MonitorApp(QtWidgets.QMainWindow):
             if msg.exec() == QMessageBox.Ok:
                 self.worker.resume_start()
                 self.initial_popup_done = True
-                
+
+    def refresh_active_tab(self):
+        if self.tabs.currentIndex() == 0:
+            self.rt_tab.update_ui()
+
+    def closeEvent(self, event):
+        self._is_closing = True
+        if hasattr(self, 'worker'):
+            self.worker.stop(); self.worker.wait(2000)
+        event.accept()
+
+    # ตัวอย่าง Logic ใน Main UI
+    def on_worker_finished(self):
+        if self._is_closing:
+            return
+        if not self.initial_popup_done:
+            port = self.config['modbus'].get('port_name', 'Unknown Port')
+            msg = QMessageBox() 
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("System Check")
+            msg.setText(" Connection Failed! " + " " * 10) # เว้นวรรคเพื่อขยายขนาดหน้าต่าง
+            msg.setInformativeText(f" Check ({port})")
+            msg.setStandardButtons(QMessageBox.Ok)
+            if msg.exec() == QMessageBox.Ok:
+                QApplication.quit() # ปิดโปรแกรมหลังจากกด OK
+
+    @QtCore.Slot(dict, float)
+    def on_data_received(self, batch, timestamp):
+        max_pts = self.config['app_settings'].get('max_points', 300)
+        polling_sec = self.config['app_settings'].get('polling_ms', 1000) / 1000.0
+        gap_threshold = polling_sec * 2.5
+
+        # 1. วนลูปจัดการข้อมูล History (Logic เดิมทั้งหมด)
+        for ch_key, val in batch.items():
+            if ch_key not in self.data_history:
+                self.data_history[ch_key], self.time_history[ch_key] = [], []
+            if self.time_history[ch_key]:
+                last_ts = self.time_history[ch_key][-1]
+                if (timestamp - last_ts) > gap_threshold:
+                    self.data_history[ch_key].append(float('nan'))
+                    self.time_history[ch_key].append(last_ts + 0.001)
+            self.data_history[ch_key].append(val)
+            self.time_history[ch_key].append(timestamp)
+            while len(self.data_history[ch_key]) > max_pts:
+                self.data_history[ch_key].pop(0)
+                self.time_history[ch_key].pop(0)
+
+        # 2. วนลูปอัปเดต UI บน Card (เพิ่มส่วนเช็ค Quarantine)
+        for ch_key, w in self.node_widgets.items():
+            # ดึงชื่อ Node จาก Key (เช่น "Node1_Temp" -> "Node1")
+            node_name = ch_key.split('_')[0]
+            ch_name = ch_key.split('_')[1] if '_' in ch_key else ""
+            # หา Config ของ Node นี้เพื่อเช็คสถานะ enabled
+            #node_cfg = next((n for n in self.config.get('nodes', []) if n['node_name'] == node_name), None)
+            # ค้นหา Channel Config ในโครงสร้าง self.config
+            node_cfg = next((n for n in self.config.get('nodes', []) if n['node_name'] == node_name), None)
+            target_ch = next((c for c in node_cfg.get('channels', []) if c['name'] == ch_name), None) if node_cfg else None
+
+            if node_cfg:
+                target_ch = next((c for c in node_cfg.get('channels', []) if c['name'] == ch_name), None)
+
+            if target_ch and not target_ch.get('enabled', True):
+                # --- กรณีถูก Quarantine ---
+                w['btn'].setStyleSheet("""
+                    QPushButton#NodeCard {
+                        background-color: rgba(30, 30, 30, 200);
+                        border: 2px solid #550000;
+                    }
+                    QLabel { color: #555555; }
+                """)
+                w['val_lbl'].setText("DISABLED")
+                w['val_lbl'].setStyleSheet("color: #444444; font-style: italic;")
+                w['perc_lbl'].setText("!ERR")
+                w['perc_lbl'].setStyleSheet("color: #662222; font-weight: bold;")
+                w['led'].set_quarantined(True)
+
+            elif ch_key in batch:
+                # --- กรณีปกติ (มีข้อมูลใหม่เข้า) ---
+                val = batch[ch_key]
+                percent = min(100, max(0, (val / w['max']) * 100))
+                w['val_lbl'].setText(f"{val:,.2f}")
+                w['val_lbl'].setStyleSheet("") # คืนค่าสีตาม QSS
+                w['perc_lbl'].setText(f"{int(percent)}%")
+                if percent >= 90:
+                    w['perc_lbl'].setStyleSheet("color: #FF3333; font-weight: bold;")
+                elif percent >= 70:
+                    w['perc_lbl'].setStyleSheet("color: #FFCC00; font-weight: bold;")
+                else:
+                    w['perc_lbl'].setStyleSheet("color: #2ECC71; font-weight: bold;")
+                w['led'].set_value(val, w['max'])
+
+        # Sync หน้าจออื่น (Logic เดิม)
+        if hasattr(self, 'matrix_tab'): self.matrix_tab.update_values(batch)
+        if self.tabs.currentIndex() == 0: self.rt_tab.update_ui()
+
+
 class HorizontalLEDBar(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(12) # ปรับความสูงให้พอดีกับแท่ง LED
+        self.setFixedHeight(12)
         self.percent = 0
         self.segments = 20
+        self.is_quarantined = False  # เพิ่ม flag สำหรับสถานะกักตัว
+
+    def set_quarantined(self, status=True):
+        self.is_quarantined = status
+        self.update()
 
     def set_value(self, value, max_val):
+        self.is_quarantined = False # ถ้ามีค่ามา ให้ยกเลิกสถานะ quarantined
         limit = max_val if max_val > 0 else 100
         self.percent = min(100, max(0, (value / limit) * 100))
         self.update()
@@ -360,7 +377,10 @@ class HorizontalLEDBar(QtWidgets.QWidget):
             x_pos = i * (seg_width + spacing)
             rect = QtCore.QRectF(x_pos, 0, seg_width, seg_height)
             
-            if i < active_segments:
+            # --- แก้ไขเฉพาะส่วนการเลือกสี ---
+            if self.is_quarantined:
+                color = QtGui.QColor(00, 00, 00, 80) # สีเทาเข้มบ่งบอกว่า Offline
+            elif i < active_segments:
                 if i >= 18: color = QtGui.QColor("#FF3333")    # 90%+
                 elif i >= 14: color = QtGui.QColor("#FFCC00")  # 70%+
                 else: color = QtGui.QColor("#2ECC71")          # Normal
