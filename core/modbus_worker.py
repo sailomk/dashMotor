@@ -199,8 +199,7 @@ class AsyncPollWorker(QtCore.QThread):
             nid = node['node_id']
             # เปลี่ยนจากเช็คแค่ตัวแรก เป็นการวนลูปเช็คทุก Channel ใน Node นี้
             for ch in node.get('channels', []):
-                if not ch.get('enabled', True): continue
-                
+                if not ch.get('enabled', True): continue                
                 addr = ch['address']
                 try:
                     if ch.get('type', 'input') == 'input':
@@ -209,18 +208,15 @@ class AsyncPollWorker(QtCore.QThread):
                     else:
                         res = await self.client.read_holding_registers(address=addr, count=1, slave=nid)
 
-                    if not res or res.isError():
+                    if  res is None or res.isError():
                         # ถ้ามีแม้แต่ Address เดียวพัง ให้ Quarantine ทั้ง Node ทันที
-                        ch['enabled'] = False
-                        #node['enabled'] = False 
-
+                        ch['enabled'] = False 
                         self.error_aggregator.add_error(nid, addr, "Q_ERR")
-                        break # ออกจากลูป Channel ไปเช็ค Node ถัดไป
+                        
                 except Exception:
                     ch['enabled'] = False
-                    #node['enabled'] = False
                     self.error_aggregator.add_error(nid, addr, "Q_ERR")
-                    break
+                    
                             
     async def main_loop(self):
         self.start_event = asyncio.Event()

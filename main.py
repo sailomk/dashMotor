@@ -14,6 +14,8 @@ from ui.benchmark_page import BenchmarkPage
 from PySide6.QtWidgets import QMessageBox, QApplication
 
 pg.setConfigOptions(antialias=True, useOpenGL=False)
+version = "1.6.6"
+
 class MonitorApp(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -53,7 +55,7 @@ class MonitorApp(QtWidgets.QMainWindow):
         self.ui_refresh_timer.timeout.connect(self.refresh_active_tab)
         self.ui_refresh_timer.start(200)
 
-        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility v1.6.5")
+        self.setWindowTitle("Phoenix Industrial Monitor - Compatibility  "+ version)
         self.resize(1280, 850)
 
     # --- [ CORE FUNCTIONS ] ---
@@ -188,35 +190,46 @@ class MonitorApp(QtWidgets.QMainWindow):
             self.switch_node(first_key, self.config['nodes'][0]['channels'][0].get('address', 0), first_key.replace("_", " - "))
                                    
     def switch_node(self, ch_key, addr, display_name):
-        """
-        สลับการแสดงผลกราฟและอัปเดต HUD ข้อมูล
-        ch_key: Key สำหรับดึง data_history (เช่น Node_Temp)
-        addr: ที่อยู่ Modbus (Address)
-        display_name: ชื่อที่ใช้แสดงบน HUD (เช่น Node - Temp)
-        """
-        # 1. เก็บชื่อที่เลือกไว้ในตัวแปรหลัก (ถ้ามี)
         self.current_key = ch_key 
         
-        # 2. จัดการสถานะปุ่ม (Checked/Unchecked) ใน Bottom Strip
+        # 1. จัดการปุ่มกดใน Bottom Strip (เดิม)
         for k, widgets in self.node_widgets.items():
-            # ถ้า key ตรงกันให้ปุ่มยุบลง (Checked) ถ้าไม่ตรงให้ยกขึ้น
             widgets['btn'].setChecked(k == ch_key)
         
-        # 3. ส่งข้อมูลไปยังหน้า RealTimeHUDTab (หน้ากราฟ)
-        # ส่ง Key เพื่อให้กราฟรู้ว่าต้องวาดเส้นไหน
+        # 2. ตรวจสอบสถานะ Quarantine ของ Node/Channel นี้ก่อนสลับ
+        node_name = ch_key.split('_')[0]
+        ch_name = ch_key.split('_')[1] if '_' in ch_key else ""
+        node_cfg = next((n for n in self.config.get('nodes', []) if n['node_name'] == node_name), None)
+        target_ch = next((c for c in node_cfg.get('channels', []) if c['name'] == ch_name), None) if node_cfg else None
+        
+        is_disabled = target_ch and not target_ch.get('enabled', True)
+
+        # 3. ส่งข้อมูลไปยังหน้า RealTimeHUDTab
         self.rt_tab.current_key = ch_key
         
-        # ส่ง Address ไปแสดงที่ Label บน HUD
         if hasattr(self.rt_tab, 'node_addr_lbl'):
             self.rt_tab.node_addr_lbl.setText(f"ADDR: 0x{addr:04X}")
             
-        # ส่งชื่อเต็มไปแสดงที่ Label บน HUD
         if hasattr(self.rt_tab, 'node_name_lbl'):
-            self.rt_tab.node_name_lbl.setText(display_name.upper())
+            # ถ้าโดน Quarantine ให้ต่อท้ายชื่อว่า (QUARANTINED)
+            suffix = " [QUARANTINED]" if is_disabled else ""
+            self.rt_tab.node_name_lbl.setText(f"{display_name.upper()}{suffix}")
 
-        # 4. บังคับให้หน้ากราฟอัปเดต UI ทันทีไม่ต้องรอ Timer
+        # 4. เคลียร์ข้อมูลกราฟ (จุดสำคัญ)
+        # หาก Node ถูกปิดการใช้งาน ให้ส่งข้อมูลหลอกที่เป็นค่าว่างไป เพื่อบังคับเคลียร์กราฟ
+        if is_disabled:
+            if ch_key in self.data_history:
+                # เคลียร์ History เฉพาะของ key นี้เพื่อให้กราฟว่างเปล่า
+                self.data_history[ch_key] = []
+                self.time_history[ch_key] = []
+            
+            # สั่งเคลียร์เส้นกราฟในหน้า UI
+            if hasattr(self.rt_tab, 'curve'):
+                self.rt_tab.curve.setData([], [])
+                
+        # 5. อัปเดต UI ทันที
         self.rt_tab.update_ui()
-
+  
     def handle_critical_error(self, summary_text):
         # เก็บข้อความไว้ใช้ตอนฟังก์ชัน on_worker_finished ทำงาน
         self.last_critical_message = summary_text
@@ -297,19 +310,21 @@ class MonitorApp(QtWidgets.QMainWindow):
 
         # 2. วนลูปอัปเดต UI บน Card (เพิ่มส่วนเช็ค Quarantine)
         for ch_key, w in self.node_widgets.items():
-            # ดึงชื่อ Node จาก Key (เช่น "Node1_Temp" -> "Node1")
-            node_name = ch_key.split('_')[0]
-            ch_name = ch_key.split('_')[1] if '_' in ch_key else ""
-            # หา Config ของ Node นี้เพื่อเช็คสถานะ enabled
-            #node_cfg = next((n for n in self.config.get('nodes', []) if n['node_name'] == node_name), None)
-            # ค้นหา Channel Config ในโครงสร้าง self.config
-            node_cfg = next((n for n in self.config.get('nodes', []) if n['node_name'] == node_name), None)
-            target_ch = next((c for c in node_cfg.get('channels', []) if c['name'] == ch_name), None) if node_cfg else None
 
-            if node_cfg:
-                target_ch = next((c for c in node_cfg.get('channels', []) if c['name'] == ch_name), None)
+            # 1. ค้นหาแบบแม่นยำ: วนลูปหาใน config ตรงๆ โดยใช้ชื่อที่เก็บไว้ใน card
+            target_ch_status = True  # Default คือใช้งานได้
+            
+            # ดึงข้อมูลที่เก็บไว้ตอน init_ui (ถ้าคุณเก็บ address ไว้ใน w จะแม่นมาก)
+            # แต่ถ้าไม่ได้เก็บ เราจะไล่เช็คจาก config['nodes']
+            for node in self.config.get('nodes', []):
+                for ch in node.get('channels', []):
+                    # สร้าง Key แบบเดียวกับที่ใช้สร้าง Card เพื่อเปรียบเทียบ
+                    current_key = f"{node['node_name']}_{ch['name']}"
+                    if current_key == ch_key:
+                        target_ch_status = ch.get('enabled', True)
+                        break
 
-            if target_ch and not target_ch.get('enabled', True):
+            if not target_ch_status:
                 # --- กรณีถูก Quarantine ---
                 w['btn'].setStyleSheet("""
                     QPushButton#NodeCard {
@@ -318,14 +333,15 @@ class MonitorApp(QtWidgets.QMainWindow):
                     }
                     QLabel { color: #555555; }
                 """)
-                w['val_lbl'].setText("DISABLED")
-                w['val_lbl'].setStyleSheet("color: #444444; font-style: italic;")
-                w['perc_lbl'].setText("!ERR")
+                w['val_lbl'].setText("QUARANTINE")
+                w['val_lbl'].setStyleSheet("color: #444444; font-style: normal;")
+                w['perc_lbl'].setText("STOP")
                 w['perc_lbl'].setStyleSheet("color: #662222; font-weight: bold;")
                 w['led'].set_quarantined(True)
 
             elif ch_key in batch:
                 # --- กรณีปกติ (มีข้อมูลใหม่เข้า) ---
+                w['btn'].setEnabled(True)
                 val = batch[ch_key]
                 percent = min(100, max(0, (val / w['max']) * 100))
                 w['val_lbl'].setText(f"{val:,.2f}")
@@ -337,7 +353,12 @@ class MonitorApp(QtWidgets.QMainWindow):
                     w['perc_lbl'].setStyleSheet("color: #FFCC00; font-weight: bold;")
                 else:
                     w['perc_lbl'].setStyleSheet("color: #2ECC71; font-weight: bold;")
-                w['led'].set_value(val, w['max'])
+                    w['led'].set_value(val, w['max'])
+            else:
+                # ปล่อยให้มันแสดง WAITING ตามเดิม หรือจะปรับแต่งนิดหน่อยให้รู้ว่า "กำลังรอ"
+                w['val_lbl'].setText("WAITING...")
+                w['val_lbl'].setStyleSheet("color: #888888;")
+                w['led'].set_value(0, w['max'])
 
         # Sync หน้าจออื่น (Logic เดิม)
         if hasattr(self, 'matrix_tab'): self.matrix_tab.update_values(batch)

@@ -4,3 +4,6 @@ Refactor code from Modbus to orgazine the file and folder to standdard.
 2. Implement Error log , fixed Croshair feature (Apr 3)
 3. Implement load history data ,  fixed Croshair feature (Apr 4)
 
+# dashMotor v 1.6.6
+1. Implemen Quanruntime for node that can't read the address 
+
