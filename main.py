@@ -66,7 +66,8 @@ class MonitorApp(QtWidgets.QMainWindow):
     def clear_error_stats(self):
         if hasattr(self, 'worker'):
             from core.modbus_worker import ErrorAggregator
-            self.worker.error_aggregator = ErrorAggregator(debug_dir=self.worker.debug_path)
+            debug_settings = self.config.get("debug", {})
+            self.worker.error_aggregator = ErrorAggregator(debug_conf=debug_settings)
             self.worker.send_error_summary()
 
     def load_config(self):

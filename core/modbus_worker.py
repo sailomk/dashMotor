@@ -131,9 +131,9 @@ class ErrorAggregator:
             for (nid, addr), count in sorted(node_stats.items()):
                 nid_length = len(str(nid))
                 if nid_length > 1:
-                    summary.append(f"  ❌ Node {nid} |  Addr: 0x{addr:04X} ({count} times)")
+                    summary.append(f"  ❌ Node {nid} |  Addr: {addr:d} ({count} times)")
                 else:
-                    summary.append(f"  ❌ Node {nid}  |  Addr: 0x{addr:04X} ({count} times)")
+                    summary.append(f"  ❌ Node {nid} |  Addr: {addr:d} ({count} times)")
                 
         summary.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         return "\n".join(summary)

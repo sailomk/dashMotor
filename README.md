@@ -6,4 +6,9 @@ Refactor code from Modbus to orgazine the file and folder to standdard.
 
 # dashMotor v 1.6.6
 1. Implemen Quanruntime for node that can't read the address 
+2. Fix button in error_tab 
+3. Change modbus address display from Hex to Dec
+
+
+
 
